@@ -27,3 +27,6 @@ target_include_directories(engine_core PUBLIC
 
 add_executable(vector_engine_app examples/main.cpp)
 target_link_libraries(vector_engine_app PRIVATE engine_core)
+
+add_executable(test_distance tests/test_distance.cpp)
+target_link_libraries(test_distance PRIVATE engine_core)

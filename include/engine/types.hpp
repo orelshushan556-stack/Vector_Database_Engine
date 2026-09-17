@@ -23,23 +23,27 @@ namespace engine {
     struct AlignedAllocator {
         using value_type = T;
 
+        template <typename U>
+        struct rebind {
+            using other = AlignedAllocator<U, Alignment>;
+        };
+
         AlignedAllocator() noexcept = default;
 
         template <typename U>
-        constexpr AlignedAllocator(const AlignedAllocator<U, Alignment>&) noexcept {
-        }
+        constexpr AlignedAllocator(const AlignedAllocator<U, Alignment>&) noexcept {}
 
         [[nodiscard]] T* allocate(std::size_t n) {
             if (n == 0) {
                 return nullptr;
             }
-            size_t size = sizeof(T) * n;
-         void* ptr = ::operator new[](size, std::align_val_t(Alignment));
+            std::size_t size = sizeof(T) * n;
+            void* ptr = ::operator new[](size, std::align_val_t(Alignment));
             return static_cast<T*>(ptr);
         }
 
         void deallocate(T* p, [[maybe_unused]] std::size_t n) noexcept {
-            operator delete[](p, std::align_val_t(Alignment));
+            ::operator delete[](p, std::align_val_t(Alignment));
         }
 
         template <typename U>
