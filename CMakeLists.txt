@@ -28,5 +28,18 @@ target_include_directories(engine_core PUBLIC
 add_executable(vector_engine_app examples/main.cpp)
 target_link_libraries(vector_engine_app PRIVATE engine_core)
 
-add_executable(test_distance tests/test_distance.cpp)
-target_link_libraries(test_distance PRIVATE engine_core)
+include(FetchContent)
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable(test_flat_index tests/test_flat_index.cpp)
+target_link_libraries(test_flat_index PRIVATE engine_core GTest::gtest_main)
+
+include(GoogleTest)
+gtest_discover_tests(test_flat_index)
