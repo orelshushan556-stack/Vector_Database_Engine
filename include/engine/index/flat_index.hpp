@@ -3,6 +3,7 @@
 #include "engine/index/index_base.hpp"
 #include "engine/types.hpp"
 
+#include <span>
 #include <vector>
 #include <cstddef>
 
@@ -22,6 +23,10 @@ namespace engine {
 
         void reserve(std::size_t capacity);
         void clear();
+
+        [[nodiscard]] std::span<const float> raw_storage() const noexcept;
+        [[nodiscard]] std::span<const VectorId> raw_ids() const noexcept;
+        void populate(std::vector<VectorId> ids, AlignedVector<float> storage);
 
     private:
         std::size_t dimension_;

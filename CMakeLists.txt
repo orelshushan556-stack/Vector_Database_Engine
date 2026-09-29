@@ -37,9 +37,16 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
+include(GoogleTest)
 
 add_executable(test_flat_index tests/test_flat_index.cpp)
 target_link_libraries(test_flat_index PRIVATE engine_core GTest::gtest_main)
-
-include(GoogleTest)
 gtest_discover_tests(test_flat_index)
+
+add_executable(test_serialization tests/test_serialization.cpp)
+target_link_libraries(test_serialization PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_serialization)
+
+add_executable(test_quantization tests/test_quantization.cpp)
+target_link_libraries(test_quantization PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_quantization)

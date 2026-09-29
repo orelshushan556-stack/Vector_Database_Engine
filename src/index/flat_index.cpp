@@ -96,5 +96,21 @@ namespace engine {
         ids_.clear();
         storage_.clear();
     }
+    std::span<const float> FlatIndex::raw_storage() const noexcept {
+        return {storage_.data(), storage_.size()};
+    }
+
+    std::span<const VectorId> FlatIndex::raw_ids() const noexcept {
+        return {ids_.data(), ids_.size()};
+    }
+
+    void FlatIndex::populate(std::vector<VectorId> ids, AlignedVector<float> storage) {
+        if (ids.size() * dimension_ != storage.size()) {
+            throw std::invalid_argument("Storage size does not match vector count * dimension");
+        }
+        ids_ = std::move(ids);
+        storage_ = std::move(storage);
+    }
 
 }
+
