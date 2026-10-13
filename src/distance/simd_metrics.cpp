@@ -181,4 +181,43 @@ namespace engine {
 
         return 1.0f - (dot_val / denom);
     }
+    float quantized_l2_distance_sq_avx2(
+        std::span<const float> query,
+        const uint8_t* target,
+        std::span<const float> scales,
+        std::span<const float> mins) {
+
+        if (query.empty() || query.size() != scales.size() || query.size() != mins.size()) {
+            throw std::invalid_argument("Input spans must be non-empty and matching in size.");
+        }
+
+        const std::size_t dim = query.size();
+        std::size_t i = 0;
+        __m256 sum = _mm256_setzero_ps();
+
+        for (; i + 7 < dim; i += 8) {
+            __m128i raw_bytes = _mm_loadu_si64(reinterpret_cast<const void*>(target + i));
+            __m256i int32_vec = _mm256_cvtepu8_epi32(raw_bytes);
+            __m256 byte_floats = _mm256_cvtepi32_ps(int32_vec);
+
+            __m256 scale_vec = _mm256_loadu_ps(&scales[i]);
+            __m256 min_vec   = _mm256_loadu_ps(&mins[i]);
+            __m256 recon     = _mm256_fmadd_ps(byte_floats, scale_vec, min_vec);
+
+            __m256 query_vec = _mm256_loadu_ps(&query[i]);
+            __m256 diff_vec  = _mm256_sub_ps(query_vec, recon);
+
+            sum = _mm256_fmadd_ps(diff_vec, diff_vec, sum);
+        }
+
+        float total = horizontal_add(sum);
+
+        for (; i < dim; ++i) {
+            float reconstructed = static_cast<float>(target[i]) * scales[i] + mins[i];
+            float diff = query[i] - reconstructed;
+            total += diff * diff;
+        }
+
+        return total;
+    }
 }

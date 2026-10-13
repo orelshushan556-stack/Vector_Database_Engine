@@ -10,6 +10,12 @@ namespace engine {
         __m256 s23 = _mm256_add_ps(s2, s3);
         return _mm256_add_ps(s01, s23);
     }
+    float quantized_l2_distance_sq_avx2(
+    std::span<const float> query,
+    const uint8_t* target,
+    std::span<const float> scales,
+    std::span<const float> mins
+);
 
     float l2_distance_squared_avx2(VectorView a, VectorView b);
     float dot_product_avx2(VectorView a, VectorView b);

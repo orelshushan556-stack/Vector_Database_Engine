@@ -16,6 +16,7 @@ add_library(engine_core
         src/distance/simd_metrics.cpp
         src/index/flat_index.cpp
         src/index/hnsw_index.cpp
+        src/index/quantized_flat_index.cpp
         src/quantization/scalar_quantizer.cpp
         src/storage/serializer.cpp
 )
@@ -50,3 +51,7 @@ gtest_discover_tests(test_serialization)
 add_executable(test_quantization tests/test_quantization.cpp)
 target_link_libraries(test_quantization PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_quantization)
+
+add_executable(test_quantized_flat_index tests/test_quantized_flat_index.cpp)
+target_link_libraries(test_quantized_flat_index PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_quantized_flat_index)
