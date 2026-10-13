@@ -20,7 +20,7 @@ namespace engine {
         storage_.insert(storage_.end(), vector.begin(), vector.end());
     }
 
-    std::vector<SearchResult> FlatIndex::search(VectorView query, std::size_t k) const {
+std::vector<SearchResult> FlatIndex::search(VectorView query, std::size_t k) const {
         if (query.size() != dimension_) {
             throw std::invalid_argument("Vector dimension does not match index dimension.");
         }
@@ -34,28 +34,36 @@ namespace engine {
 
         std::priority_queue<SearchResult, std::vector<SearchResult>, decltype(comp)> heap(comp);
 
-        for (std::size_t i = 0; i < ids_.size(); ++i) {
-            VectorView target(&storage_[i * dimension_], dimension_);
-            float dist = 0.0f;
-
-            switch (metric_) {
-                case MetricType::L2:
-                    dist = l2_distance_squared_avx2(query, target);
-                    break;
-                case MetricType::Cosine:
-                    dist = cosine_distance_avx2(query, target);
-                    break;
-                case MetricType::DotProduct:
-                    dist = -dot_product_avx2(query, target);
-                    break;
-            }
-
+        auto evaluate_vector = [&](std::size_t i, float dist) {
             if (heap.size() < k) {
                 heap.push(SearchResult{ids_[i], dist});
             } else if (dist < heap.top().distance) {
                 heap.pop();
                 heap.push(SearchResult{ids_[i], dist});
             }
+        };
+
+        switch (metric_) {
+            case MetricType::L2:
+                for (std::size_t i = 0; i < ids_.size(); ++i) {
+                    VectorView target(&storage_[i * dimension_], dimension_);
+                    evaluate_vector(i, l2_distance_squared_avx2(query, target));
+                }
+                break;
+
+            case MetricType::Cosine:
+                for (std::size_t i = 0; i < ids_.size(); ++i) {
+                    VectorView target(&storage_[i * dimension_], dimension_);
+                    evaluate_vector(i, cosine_distance_avx2(query, target));
+                }
+                break;
+
+            case MetricType::DotProduct:
+                for (std::size_t i = 0; i < ids_.size(); ++i) {
+                    VectorView target(&storage_[i * dimension_], dimension_);
+                    evaluate_vector(i, -dot_product_avx2(query, target));
+                }
+                break;
         }
 
         std::vector<SearchResult> results;
@@ -74,6 +82,7 @@ namespace engine {
 
         return results;
     }
+
 
     std::size_t FlatIndex::size() const noexcept {
         return ids_.size();
