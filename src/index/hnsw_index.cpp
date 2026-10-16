@@ -23,9 +23,45 @@ namespace engine {
     }
 
     std::vector<SearchResult> HNSWIndex::search(VectorView query, std::size_t k) const {
-        return {};
-    }
+        if (query.size() != dimension_) {
+            throw std::invalid_argument("Query vector dimension does not match index dimension.");
+        }
 
+        if (ids_.empty() || k == 0) {
+            return {};
+        }
+
+        auto curr_ep = static_cast<uint32_t>(enter_point_);
+
+        for (int lc = max_level_; lc > 0; --lc) {
+            auto candidates = search_layer(query, curr_ep, 1, lc);
+            curr_ep = candidates.top().second;
+        }
+
+        auto top_candidates = search_layer(query, curr_ep, std::max(ef_search_, k), 0);
+
+        while (top_candidates.size() > k) {
+            top_candidates.pop();
+        }
+
+        std::vector<SearchResult> results;
+        results.reserve(top_candidates.size());
+
+        while (!top_candidates.empty()) {
+            auto [dist, node_id] = top_candidates.top();
+            top_candidates.pop();
+
+            if (metric_ == MetricType::DotProduct) {
+                dist = -dist;
+            }
+
+            results.push_back(SearchResult{ids_[node_id], dist});
+        }
+
+        std::reverse(results.begin(), results.end());
+
+        return results;
+    }
     std::size_t HNSWIndex::size() const noexcept {
         return ids_.size();
     }
