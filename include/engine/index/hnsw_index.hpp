@@ -10,6 +10,7 @@
 #include <span>
 #include <utility>
 #include <vector>
+#include <string>
 
 namespace engine {
 
@@ -32,6 +33,8 @@ namespace engine {
 
         void reserve(std::size_t capacity);
         void clear();
+        void save(const std::string& file_path) const;
+        void load(const std::string& file_path);
 
     private:
         [[nodiscard]] int get_random_level();
