@@ -1,4 +1,4 @@
-#include "engine/index/quantized_flat_index.hpp"
+﻿#include "engine/index/quantized_flat_index.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include <algorithm>
 #include <queue>
@@ -61,8 +61,8 @@ namespace engine {
             return {};
         }
 
-        const auto scales = quantizer_.scale_values();
-        const auto mins = quantizer_.min_values();
+        const auto& scales = quantizer_.scale_values();
+        const auto& mins = quantizer_.min_values();
 
         auto comp = [](const SearchResult& a, const SearchResult& b) {
             return a.distance < b.distance;
@@ -70,7 +70,7 @@ namespace engine {
         std::priority_queue<SearchResult, std::vector<SearchResult>, decltype(comp)> heap(comp);
 
         for (std::size_t i = 0; i < count_; ++i) {
-            const uint8_t* target = storage_.data() + (i * dimension_);
+            std::span<const uint8_t> target{storage_.data() + (i * dimension_), dimension_};
             float dist = quantized_l2_distance_sq_avx2(query, target, scales, mins);
 
             if (heap.size() < k) {

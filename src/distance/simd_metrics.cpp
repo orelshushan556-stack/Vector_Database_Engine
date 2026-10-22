@@ -1,4 +1,4 @@
-#include "engine/distance/simd_metrics.hpp"
+﻿#include "engine/distance/simd_metrics.hpp"
 
 #include <immintrin.h>
 #include <cmath>
@@ -181,22 +181,71 @@ namespace engine {
 
         return 1.0f - (dot_val / denom);
     }
+
     float quantized_l2_distance_sq_avx2(
         std::span<const float> query,
-        const uint8_t* target,
+        std::span<const uint8_t> target,
         std::span<const float> scales,
         std::span<const float> mins) {
 
-        if (query.empty() || query.size() != scales.size() || query.size() != mins.size()) {
+        if (query.empty() || query.size() != target.size() || query.size() != scales.size() || query.size() != mins.size()) {
             throw std::invalid_argument("Input spans must be non-empty and matching in size.");
         }
 
         const std::size_t dim = query.size();
         std::size_t i = 0;
-        __m256 sum = _mm256_setzero_ps();
+
+        __m256 sum0 = _mm256_setzero_ps();
+        __m256 sum1 = _mm256_setzero_ps();
+        __m256 sum2 = _mm256_setzero_ps();
+        __m256 sum3 = _mm256_setzero_ps();
+
+        for (; i + 31 < dim; i += 32) {
+            __m128i raw_bytes0 = _mm_loadu_si64(reinterpret_cast<const void*>(target.data() + i));
+            __m256i int32_vec0 = _mm256_cvtepu8_epi32(raw_bytes0);
+            __m256 byte_floats0 = _mm256_cvtepi32_ps(int32_vec0);
+            __m256 scale_vec0 = _mm256_loadu_ps(&scales[i]);
+            __m256 min_vec0   = _mm256_loadu_ps(&mins[i]);
+            __m256 recon0     = _mm256_fmadd_ps(byte_floats0, scale_vec0, min_vec0);
+            __m256 query_vec0 = _mm256_loadu_ps(&query[i]);
+            __m256 diff_vec0  = _mm256_sub_ps(query_vec0, recon0);
+            sum0 = _mm256_fmadd_ps(diff_vec0, diff_vec0, sum0);
+
+            __m128i raw_bytes1 = _mm_loadu_si64(reinterpret_cast<const void*>(target.data() + i + 8));
+            __m256i int32_vec1 = _mm256_cvtepu8_epi32(raw_bytes1);
+            __m256 byte_floats1 = _mm256_cvtepi32_ps(int32_vec1);
+            __m256 scale_vec1 = _mm256_loadu_ps(&scales[i + 8]);
+            __m256 min_vec1   = _mm256_loadu_ps(&mins[i + 8]);
+            __m256 recon1     = _mm256_fmadd_ps(byte_floats1, scale_vec1, min_vec1);
+            __m256 query_vec1 = _mm256_loadu_ps(&query[i + 8]);
+            __m256 diff_vec1  = _mm256_sub_ps(query_vec1, recon1);
+            sum1 = _mm256_fmadd_ps(diff_vec1, diff_vec1, sum1);
+
+            __m128i raw_bytes2 = _mm_loadu_si64(reinterpret_cast<const void*>(target.data() + i + 16));
+            __m256i int32_vec2 = _mm256_cvtepu8_epi32(raw_bytes2);
+            __m256 byte_floats2 = _mm256_cvtepi32_ps(int32_vec2);
+            __m256 scale_vec2 = _mm256_loadu_ps(&scales[i + 16]);
+            __m256 min_vec2   = _mm256_loadu_ps(&mins[i + 16]);
+            __m256 recon2     = _mm256_fmadd_ps(byte_floats2, scale_vec2, min_vec2);
+            __m256 query_vec2 = _mm256_loadu_ps(&query[i + 16]);
+            __m256 diff_vec2  = _mm256_sub_ps(query_vec2, recon2);
+            sum2 = _mm256_fmadd_ps(diff_vec2, diff_vec2, sum2);
+
+            __m128i raw_bytes3 = _mm_loadu_si64(reinterpret_cast<const void*>(target.data() + i + 24));
+            __m256i int32_vec3 = _mm256_cvtepu8_epi32(raw_bytes3);
+            __m256 byte_floats3 = _mm256_cvtepi32_ps(int32_vec3);
+            __m256 scale_vec3 = _mm256_loadu_ps(&scales[i + 24]);
+            __m256 min_vec3   = _mm256_loadu_ps(&mins[i + 24]);
+            __m256 recon3     = _mm256_fmadd_ps(byte_floats3, scale_vec3, min_vec3);
+            __m256 query_vec3 = _mm256_loadu_ps(&query[i + 24]);
+            __m256 diff_vec3  = _mm256_sub_ps(query_vec3, recon3);
+            sum3 = _mm256_fmadd_ps(diff_vec3, diff_vec3, sum3);
+        }
+
+        __m256 sum = reduce_accumulators(sum0, sum1, sum2, sum3);
 
         for (; i + 7 < dim; i += 8) {
-            __m128i raw_bytes = _mm_loadu_si64(reinterpret_cast<const void*>(target + i));
+            __m128i raw_bytes = _mm_loadu_si64(reinterpret_cast<const void*>(target.data() + i));
             __m256i int32_vec = _mm256_cvtepu8_epi32(raw_bytes);
             __m256 byte_floats = _mm256_cvtepi32_ps(int32_vec);
 
