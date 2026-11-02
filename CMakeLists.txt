@@ -68,3 +68,14 @@ gtest_discover_tests(test_hnsw)
 add_executable(test_hnsw_sq8 tests/test_hnsw_sq8.cpp)
 target_link_libraries(test_hnsw_sq8 PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_hnsw_sq8)
+# Benchmarking Target
+
+
+
+
+# Professional Engine Benchmark Target
+
+
+# Academic SIFT-10K Benchmark Target
+add_executable(bench_sift benchmarks/bench_sift.cpp)
+target_link_libraries(bench_sift PRIVATE engine_core)
