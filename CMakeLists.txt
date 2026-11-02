@@ -11,6 +11,9 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic -mavx2 -mfma -O3)
 endif()
 
+# ==============================================================================
+# Core Vector Engine Library
+# ==============================================================================
 add_library(engine_core
         src/distance/metrics.cpp
         src/distance/simd_metrics.cpp
@@ -30,6 +33,9 @@ target_include_directories(engine_core PUBLIC
 add_executable(vector_engine_app examples/main.cpp)
 target_link_libraries(vector_engine_app PRIVATE engine_core)
 
+# ==============================================================================
+# Testing Framework (GoogleTest)
+# ==============================================================================
 include(FetchContent)
 FetchContent_Declare(
         googletest
@@ -68,14 +74,27 @@ gtest_discover_tests(test_hnsw)
 add_executable(test_hnsw_sq8 tests/test_hnsw_sq8.cpp)
 target_link_libraries(test_hnsw_sq8 PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_hnsw_sq8)
-# Benchmarking Target
 
-
-
-
-# Professional Engine Benchmark Target
-
-
+# ==============================================================================
 # Academic SIFT-10K Benchmark Target
+# ==============================================================================
 add_executable(bench_sift benchmarks/bench_sift.cpp)
 target_link_libraries(bench_sift PRIVATE engine_core)
+
+# ==============================================================================
+# Standalone Vector Database Network Service (nexus_server)
+# ==============================================================================
+file(GLOB SERVER_SOURCES "src/server/*.cpp")
+
+add_executable(nexus_server ${SERVER_SOURCES})
+
+target_include_directories(nexus_server PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/server
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(nexus_server PRIVATE engine_core)
+
+if (WIN32)
+    target_link_libraries(nexus_server PRIVATE ws2_32)
+endif()
