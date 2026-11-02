@@ -16,6 +16,7 @@ add_library(engine_core
         src/distance/simd_metrics.cpp
         src/index/flat_index.cpp
         src/index/hnsw_index.cpp
+        src/index/hnsw_index_sq8.cpp
         src/index/quantized_flat_index.cpp
         src/quantization/scalar_quantizer.cpp
         src/storage/serializer.cpp
@@ -40,13 +41,13 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
+add_executable(test_distance tests/test_distance.cpp)
+target_link_libraries(test_distance PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_distance)
+
 add_executable(test_flat_index tests/test_flat_index.cpp)
 target_link_libraries(test_flat_index PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_flat_index)
-
-add_executable(test_serialization tests/test_serialization.cpp)
-target_link_libraries(test_serialization PRIVATE engine_core GTest::gtest_main)
-gtest_discover_tests(test_serialization)
 
 add_executable(test_quantization tests/test_quantization.cpp)
 target_link_libraries(test_quantization PRIVATE engine_core GTest::gtest_main)
@@ -55,3 +56,15 @@ gtest_discover_tests(test_quantization)
 add_executable(test_quantized_flat_index tests/test_quantized_flat_index.cpp)
 target_link_libraries(test_quantized_flat_index PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_quantized_flat_index)
+
+add_executable(test_serialization tests/test_serialization.cpp)
+target_link_libraries(test_serialization PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_serialization)
+
+add_executable(test_hnsw tests/test_hnsw.cpp)
+target_link_libraries(test_hnsw PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_hnsw)
+
+add_executable(test_hnsw_sq8 tests/test_hnsw_sq8.cpp)
+target_link_libraries(test_hnsw_sq8 PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_hnsw_sq8)
