@@ -98,3 +98,8 @@ target_link_libraries(nexus_server PRIVATE engine_core)
 if (WIN32)
     target_link_libraries(nexus_server PRIVATE ws2_32)
 endif()
+# Target: test_wal
+add_executable(test_wal tests/test_wal.cpp src/storage/wal_manager.cpp)
+target_include_directories(test_wal PRIVATE include)
+target_link_libraries(test_wal PRIVATE GTest::gtest_main)
+add_test(NAME test_wal COMMAND test_wal)
