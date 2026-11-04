@@ -39,6 +39,7 @@ public:
 private:
     std::string wal_path_;
     FILE* file_{nullptr};
+    std::vector<uint8_t> buffer_;
 
     void sync_to_disk();
 };
