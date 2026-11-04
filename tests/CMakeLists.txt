@@ -43,3 +43,7 @@ gtest_discover_tests(test_wal)
 add_executable(test_crc32 test_crc32.cpp)
 target_link_libraries(test_crc32 PRIVATE engine_core GTest::gtest_main)
 gtest_discover_tests(test_crc32)
+
+add_executable(test_vector_engine test_vector_engine.cpp)
+target_link_libraries(test_vector_engine PRIVATE engine_core GTest::gtest_main)
+gtest_discover_tests(test_vector_engine)

@@ -12,6 +12,7 @@ else()
 endif()
 
 add_library(engine_core
+        src/core/vector_engine.cpp
         src/distance/metrics.cpp
         src/distance/simd_metrics.cpp
         src/index/flat_index.cpp
