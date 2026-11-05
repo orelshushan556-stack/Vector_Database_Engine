@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 #include <ranges>
 #include <span>
 #include <stdexcept>
@@ -20,6 +21,10 @@
 #endif
 
 namespace engine::storage {
+
+namespace {
+constexpr uint32_t MAX_SUPPORTED_DIM = 4096;
+}
 
 WalManager::WalManager(std::string wal_path)
     : wal_path_(std::move(wal_path)) {
@@ -97,6 +102,10 @@ bool WalManager::is_open() const {
 void WalManager::append_insert(uint64_t id, std::span<const float> vector) {
     if (!file_) {
         throw std::runtime_error("WAL file is not open for writing");
+    }
+
+    if (vector.empty() || vector.size() > MAX_SUPPORTED_DIM) {
+        throw std::invalid_argument("Vector dimension is outside the supported WAL range");
     }
 
     const uint32_t dim = static_cast<uint32_t>(vector.size());
@@ -186,6 +195,12 @@ void WalManager::replay(const std::function<void(uint64_t, std::span<const float
         std::array<uint8_t, 4> dim_bytes{};
         std::ranges::copy(header_buf.begin() + 13, header_buf.begin() + 17, dim_bytes.begin());
         uint32_t dim = std::bit_cast<uint32_t>(dim_bytes);
+
+        if (dim == 0 || dim > MAX_SUPPORTED_DIM) {
+            std::cerr << "[WAL] Corrupted record: implausible dimension " << dim
+                      << " (max " << MAX_SUPPORTED_DIM << "); aborting replay\n";
+            throw std::runtime_error("Corrupted WAL record: invalid vector dimension");
+        }
 
         const size_t vector_bytes_len = static_cast<size_t>(dim) * sizeof(float);
         const size_t remaining_record_len = vector_bytes_len + 1;

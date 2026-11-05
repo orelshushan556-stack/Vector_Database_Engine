@@ -16,6 +16,7 @@ private:
     std::shared_ptr<engine::VectorEngine> engine_;
     StaticFileHandler file_handler_;
 
+    HttpResponse route_impl(const HttpRequest& req) const;
     HttpResponse handle_options() const;
     HttpResponse handle_api_status() const;
     HttpResponse handle_api_concepts() const;

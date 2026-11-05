@@ -18,6 +18,10 @@ VectorEngine::VectorEngine(std::unique_ptr<IndexBase> index, std::string wal_pat
 }
 
 void VectorEngine::insert(uint64_t id, std::span<const float> vector) {
+    if (vector.size() != index_->dimension()) {
+        throw std::invalid_argument("Vector dimension does not match engine dimension");
+    }
+
     {
         std::lock_guard<std::mutex> wal_lock(wal_mutex_);
         wal_.append_insert(id, vector);
@@ -30,6 +34,10 @@ void VectorEngine::insert(uint64_t id, std::span<const float> vector) {
 }
 
 std::vector<SearchResult> VectorEngine::search(std::span<const float> query, std::size_t k) const {
+    if (query.size() != index_->dimension()) {
+        throw std::invalid_argument("Query dimension does not match engine dimension");
+    }
+
     std::shared_lock<std::shared_mutex> lock(index_rw_lock_);
     return index_->search(query, k);
 }

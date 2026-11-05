@@ -118,7 +118,7 @@ std::priority_queue<std::pair<float, uint32_t>> HNSWIndex::search_layer(
         tl_visited.current_tag = 1;
     }
 
-    auto compute_dist = [&](uint32_t internal_id) noexcept -> float {
+    auto compute_dist = [&](uint32_t internal_id) -> float {
         VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
         switch (metric_) {
             case MetricType::L2:
@@ -198,7 +198,7 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
 
     const int start_level = std::min(max_level_, new_level);
 
-    auto compute_dist = [&](uint32_t id1, uint32_t id2) noexcept -> float {
+    auto compute_dist = [&](uint32_t id1, uint32_t id2) -> float {
         VectorView v1(&storage_[static_cast<std::size_t>(id1) * dimension_], dimension_);
         VectorView v2(&storage_[static_cast<std::size_t>(id2) * dimension_], dimension_);
         switch (metric_) {
@@ -283,7 +283,7 @@ std::vector<SearchResult> HNSWIndex::search(VectorView query, std::size_t k) con
         return {};
     }
 
-    auto compute_dist = [&](uint32_t internal_id) noexcept -> float {
+    auto compute_dist = [&](uint32_t internal_id) -> float {
         VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
         switch (metric_) {
             case MetricType::L2:

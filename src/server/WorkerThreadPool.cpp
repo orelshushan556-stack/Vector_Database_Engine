@@ -1,5 +1,8 @@
 #include "WorkerThreadPool.hpp"
 
+#include <exception>
+#include <iostream>
+
 WorkerThreadPool::WorkerThreadPool(size_t num_threads) : stop_(false) {
     for (size_t i = 0; i < num_threads; ++i) {
         workers_.emplace_back([this]() {
@@ -53,6 +56,12 @@ void WorkerThreadPool::worker_loop() {
             tasks_.pop();
         }
 
-        task();
+        try {
+            task();
+        } catch (const std::exception& e) {
+            std::cerr << "[WorkerThreadPool] Task failed: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "[WorkerThreadPool] Task failed with unknown exception" << std::endl;
+        }
     }
 }
