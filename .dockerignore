@@ -1,0 +1,24 @@
+.git
+.gitignore
+.idea
+.vscode
+
+# build output
+build/
+cmake-build-*/
+public/
+
+# node
+web/node_modules/
+web/archive/
+
+# runtime state
+*.wal
+*.bin
+*.log
+data/
+
+# misc
+generate_bonsai.py
+.DS_Store
+Thumbs.db

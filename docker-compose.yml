@@ -1,0 +1,12 @@
+services:
+  nexus-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nexus-vector-engine:latest
+    container_name: nexus-engine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
