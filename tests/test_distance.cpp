@@ -1,11 +1,12 @@
-﻿#include "engine/distance/metrics.hpp"
+﻿#include <gtest/gtest.h>
+
+#include "engine/distance/metrics.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include "engine/types.hpp"
 
-#include <cassert>
 #include <cmath>
-#include <iostream>
 #include <random>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -25,90 +26,44 @@ engine::AlignedVector<float> generate_random_vector(std::size_t dim, float min_v
     return vec;
 }
 
-void test_metrics_across_dimensions() {
+TEST(DistanceTest, SimdKernelsMatchScalarReferenceAcrossDimensions) {
+    // Covers dimensions below, at, and just above every unroll boundary (8, 16, 32) plus
+    // sizes that exercise the scalar tail.
     const std::vector<std::size_t> test_dims = {
         1, 7, 8, 9, 15, 16, 31, 32, 33, 64, 127, 128, 256, 512, 1024, 1536
     };
 
     for (std::size_t dim : test_dims) {
+        SCOPED_TRACE("dimension " + std::to_string(dim));
         auto a = generate_random_vector(dim);
         auto b = generate_random_vector(dim);
 
-        engine::VectorView va{a.data(), a.size()};
-        engine::VectorView vb{b.data(), b.size()};
+        const engine::VectorView va{a.data(), a.size()};
+        const engine::VectorView vb{b.data(), b.size()};
 
-        // 1. L2 Distance Squared
-        float l2_scalar = engine::l2_distance_squared(va, vb);
-        float l2_simd   = engine::l2_distance_squared_avx2(va, vb);
-        assert(approx_equal(l2_scalar, l2_simd) && "L2 AVX2 mismatch!");
-
-        // 2. Dot Product
-        float dot_scalar = engine::dot_product(va, vb);
-        float dot_simd   = engine::dot_product_avx2(va, vb);
-        assert(approx_equal(dot_scalar, dot_simd) && "Dot Product AVX2 mismatch!");
-
-        // 3. Cosine Distance
-        float cos_scalar = engine::cosine_distance(va, vb);
-        float cos_simd   = engine::cosine_distance_avx2(va, vb);
-        assert(approx_equal(cos_scalar, cos_simd) && "Cosine Distance AVX2 mismatch!");
+        EXPECT_TRUE(approx_equal(engine::l2_distance_squared(va, vb), engine::l2_distance_squared_avx2(va, vb)))
+            << "L2 AVX2 mismatch";
+        EXPECT_TRUE(approx_equal(engine::dot_product(va, vb), engine::dot_product_avx2(va, vb)))
+            << "Dot product AVX2 mismatch";
+        EXPECT_TRUE(approx_equal(engine::cosine_distance(va, vb), engine::cosine_distance_avx2(va, vb)))
+            << "Cosine AVX2 mismatch";
     }
-
-    std::cout << "[PASS] All metric parity tests passed across dimensions.\n";
 }
 
-void test_edge_cases() {
+TEST(DistanceTest, KernelsRejectInvalidInput) {
     auto v1 = generate_random_vector(32);
     auto v2 = generate_random_vector(64);
-    engine::VectorView v_empty{};
-    engine::VectorView va{v1.data(), v1.size()};
-    engine::VectorView vb{v2.data(), v2.size()};
+    const engine::VectorView v_empty{};
+    const engine::VectorView va{v1.data(), v1.size()};
+    const engine::VectorView vb{v2.data(), v2.size()};
 
-    // Dimension mismatch
-    bool threw = false;
-    try {
-        engine::l2_distance_squared_avx2(va, vb);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    assert(threw && "Failed to throw on dimension mismatch (L2)!");
+    EXPECT_THROW(static_cast<void>(engine::l2_distance_squared_avx2(va, vb)), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(engine::dot_product_avx2(va, vb)), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(engine::cosine_distance_avx2(v_empty, v_empty)), std::invalid_argument);
 
-    threw = false;
-    try {
-        engine::dot_product_avx2(va, vb);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    assert(threw && "Failed to throw on dimension mismatch (Dot)!");
-
-    // Empty vector
-    threw = false;
-    try {
-        engine::cosine_distance_avx2(v_empty, v_empty);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    assert(threw && "Failed to throw on empty vector!");
-
-    // Zero-norm vector in cosine
     engine::AlignedVector<float> zero_vec(32, 0.0f);
-    engine::VectorView vz{zero_vec.data(), zero_vec.size()};
-    threw = false;
-    try {
-        engine::cosine_distance_avx2(va, vz);
-    } catch (const std::invalid_argument&) {
-        threw = true;
-    }
-    assert(threw && "Failed to throw on zero-norm vector (Cosine)!");
-
-    std::cout << "[PASS] All edge case and validation tests passed.\n";
+    const engine::VectorView vz{zero_vec.data(), zero_vec.size()};
+    EXPECT_THROW(static_cast<void>(engine::cosine_distance_avx2(va, vz)), std::invalid_argument);
 }
 
 } // namespace
-
-int main() {
-    std::cout << "Running distance metric test suite...\n";
-    test_metrics_across_dimensions();
-    test_edge_cases();
-    std::cout << "All distance tests completed successfully.\n";
-    return 0;
-}

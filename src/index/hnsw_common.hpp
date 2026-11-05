@@ -17,8 +17,16 @@
 namespace engine::hnsw_detail {
 
 using DistPair = std::pair<float, uint32_t>;
-using MaxHeap = std::priority_queue<DistPair, std::vector<DistPair>, std::less<DistPair>>;
-using MinHeap = std::priority_queue<DistPair, std::vector<DistPair>, std::greater<DistPair>>;
+// std::priority_queue exposes no way to reserve capacity except by constructing it from an
+// existing container, which runs make_heap over an empty range (and trips a GCC 13
+// -Waggressive-loop-optimizations false positive). These subclasses reserve the underlying
+// vector directly; they add no state, so converting to the base type is a plain move.
+struct MaxHeap : std::priority_queue<DistPair, std::vector<DistPair>, std::less<DistPair>> {
+    void reserve(std::size_t n) { c.reserve(n); }
+};
+struct MinHeap : std::priority_queue<DistPair, std::vector<DistPair>, std::greater<DistPair>> {
+    void reserve(std::size_t n) { c.reserve(n); }
+};
 
 struct VisitedList {
     std::vector<uint32_t> tags;
@@ -72,13 +80,11 @@ MaxHeap search_layer_impl(std::span<const uint32_t> enter_points,
     // caller-supplied ef from sizing the buffers below.
     ef = std::min(ef, node_count);
 
-    std::vector<DistPair> top_container;
-    top_container.reserve(ef + 1);
-    MaxHeap top(std::less<DistPair>{}, std::move(top_container));
+    MaxHeap top;
+    top.reserve(ef + 1);
 
-    std::vector<DistPair> cand_container;
-    cand_container.reserve(ef * 2);
-    MinHeap candidates(std::greater<DistPair>{}, std::move(cand_container));
+    MinHeap candidates;
+    candidates.reserve(ef * 2);
 
     VisitedList& visited = thread_visited();
     visited.begin(node_count);
@@ -148,7 +154,7 @@ void greedy_descend(uint32_t& ep, float& ep_dist, int from_level, int stop_level
 }
 
 // Drain a max-heap into a vector sorted by ascending distance.
-inline std::vector<DistPair> drain_ascending(MaxHeap&& heap) {
+inline std::vector<DistPair> drain_ascending(std::priority_queue<DistPair>&& heap) {
     std::vector<DistPair> out;
     out.reserve(heap.size());
     while (!heap.empty()) {
