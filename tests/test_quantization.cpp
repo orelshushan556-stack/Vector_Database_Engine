@@ -12,11 +12,11 @@ TEST(ScalarQuantizerTest, ThrowsWhenEncodingBeforeTraining) {
     std::vector<float> input = {1.0f, 2.0f, 3.0f, 4.0f};
 
     EXPECT_FALSE(quantizer.is_trained());
-    EXPECT_THROW(quantizer.encode(input), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(quantizer.encode(input)), std::runtime_error);
 
     std::vector<uint8_t> encoded(4);
     EXPECT_THROW(quantizer.encode(input, encoded), std::runtime_error);
-    EXPECT_THROW(quantizer.decode(encoded), std::runtime_error);
+    EXPECT_THROW(static_cast<void>(quantizer.decode(encoded)), std::runtime_error);
 }
 
 TEST(ScalarQuantizerTest, ThrowsOnInvalidTrainingData) {
@@ -41,7 +41,7 @@ TEST(ScalarQuantizerTest, ThrowsOnDimensionMismatch) {
     quantizer.train(training_data);
 
     std::vector<float> wrong_size_input = {1.0f, 2.0f, 3.0f};
-    EXPECT_THROW(quantizer.encode(wrong_size_input), std::invalid_argument);
+    EXPECT_THROW(static_cast<void>(quantizer.encode(wrong_size_input)), std::invalid_argument);
 
     std::vector<uint8_t> valid_encoded = {0, 128, 200, 255};
     std::vector<float> wrong_size_dst(3);

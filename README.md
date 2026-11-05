@@ -22,8 +22,8 @@ Author: orel shushan
 | Index types          | `FlatIndex`, `QuantizedFlatIndex`, `HNSWIndex`, `HNSWIndexSQ8`                  |
 | Metrics              | `L2` (squared Euclidean), `DotProduct` (negated for ranking), `Cosine` (1 - cos) |
 | SIMD requirement     | AVX2 and FMA (index code paths call the AVX2 kernels unconditionally)           |
-| Durability           | Append-only WAL, fsync per record, CRC32-C via SSE4.2                           |
-| Snapshot             | Binary index serializer with per-index-type magic numbers                       |
+| Durability           | Append-only WAL, checked sync per record, CRC32-C via SSE4.2, torn-tail truncation |
+| Snapshot             | Binary index serializer with per-index-type magic numbers; temp file, fsync, atomic rename |
 | Service              | Blocking-socket HTTP/1.1 server, fixed worker pool, JSON over REST              |
 
 The service binary builds a 128-dimensional `HNSWIndexSQ8` with the L2 metric over a registry of 100 built-in concept vectors, then opens the WAL and replays it into the index.
@@ -74,6 +74,20 @@ Structure:
 - Visited-set tracking uses a thread-local tag array, avoiding per-query allocation and clearing.
 - There is no delete operation. `add` with an existing id appends a second node; ids are not deduplicated.
 
+Shared graph core: `src/index/hnsw_common.hpp` holds the traversal and maintenance logic used by both `HNSWIndex` and `HNSWIndexSQ8`. It is a header of function templates parameterized by policy callables, so there is no virtual dispatch on the hot path and the compiler inlines each index's distance function into the loop:
+
+| Primitive                | Responsibility                                                                                  |
+|--------------------------|-------------------------------------------------------------------------------------------------|
+| `search_layer_impl`      | Best-first beam search on one layer; takes link-access, distance, and prefetch callables         |
+| `greedy_descend`         | Single-entry hill climb through the upper layers                                                |
+| `add_link_impl`          | Append a neighbor, or replace the farthest existing neighbor if the new one is closer            |
+| `connect_new_node`       | Bidirectional linking of a new node to its closest `M` / `M0` candidates                         |
+| `VisitedList`            | Thread-local epoch-tagged visited set shared by both index types                                 |
+
+Each index supplies only its storage layout and metric dispatch: `HNSWIndex::distance_to` over FP32 vectors, and `HNSWIndexSQ8::compute_quantized_distance` over SQ8 codes (L2) or raw FP32 (cosine, dot product).
+
+Cache prefetching: inside `search_layer_impl`, before distances are evaluated for the neighbors of an expanded node, a first pass issues `_mm_prefetch(..., _MM_HINT_T0)` for each unvisited neighbor's vector data (up to four 64-byte cache lines per vector; the SQ8 index prefetches the 8-bit codes for L2 and the raw floats for the other metrics). This overlaps the dependent cache misses of the pointer-chasing traversal. The effect has not been benchmarked with this repository's harness; its benefit is workload and hardware dependent.
+
 `HNSWIndex` is not internally synchronized; thread safety is provided by `VectorEngine` (section 2.5).
 
 ### 2.3 SQ8 quantization pipeline
@@ -118,22 +132,23 @@ Record size is `18 + 4*d` bytes. The log has no file header and no magic number.
 
 Checksum: CRC32-C (Castagnoli) computed with the SSE4.2 instructions `_mm_crc32_u64` and `_mm_crc32_u8`, initial value `0xFFFFFFFF`, final XOR `0xFFFFFFFF`. The CRC covers the id, dimension, and vector payload; it does not cover the op byte or the end marker.
 
-Write path: `append_insert` serializes the record into a reusable buffer, issues one `fwrite`, flushes the C buffer, and then calls `fdatasync` (POSIX) or `FlushFileBuffers` (Windows). Every insert is therefore synced before `insert` returns. `VectorEngine::insert` appends to the WAL first and then applies the vector to the in-memory index.
+Write path: `append_insert` rejects dimensions of 0 or above `MAX_SUPPORTED_DIM` (4096), serializes the record into a reusable buffer, issues one `fwrite`, flushes the C buffer, and then synchronizes with `fdatasync` (POSIX) or `FlushFileBuffers` (Windows). The return value of the OS call is checked: a failure is logged to stderr and raised as `std::system_error` carrying the OS error code, so an unsynchronized write is never reported as durable. `VectorEngine::insert` validates the vector dimension against the index, appends to the WAL, and then applies the vector to the in-memory index.
 
-Replay (`WalManager::replay`, invoked from the `VectorEngine` constructor) reads records sequentially and applies each through the index's `add`:
+Replay (`WalManager::replay`, invoked from the `VectorEngine` constructor) reads records sequentially and applies each through the index's `add`. The dimension field is range-checked before any buffer is sized, so a corrupted length cannot trigger a large allocation; the CRC is verified over the complete payload before the record is applied.
 
-| Condition                                              | Behavior                                          |
-|--------------------------------------------------------|---------------------------------------------------|
-| Clean end of file                                      | Replay ends normally                              |
-| Truncated header (fewer than 17 bytes)                 | Replay stops silently; earlier records are kept   |
-| Truncated vector payload                               | Replay stops silently; earlier records are kept   |
-| Unknown op type byte                                   | Throws `std::runtime_error`                       |
-| Missing end marker or marker not equal to `0xAA`       | Throws `std::runtime_error`                       |
-| CRC32-C mismatch                                       | Throws `std::runtime_error`                       |
+| Condition                                              | Behavior                                                          |
+|--------------------------------------------------------|-------------------------------------------------------------------|
+| Clean end of file                                      | Replay ends normally                                              |
+| Truncated header (fewer than 17 bytes)                 | Torn tail: logged, file truncated to the last valid record        |
+| Truncated vector payload or missing end marker         | Torn tail: logged, file truncated to the last valid record        |
+| Unknown op type byte                                   | Throws `std::runtime_error`                                       |
+| Dimension of 0 or above `MAX_SUPPORTED_DIM`            | Logged; throws `std::runtime_error`                               |
+| End marker present but not equal to `0xAA`             | Throws `std::runtime_error`                                       |
+| CRC32-C mismatch on a complete record                  | Throws `std::runtime_error`                                       |
 
-A torn write at the tail of the log that cuts a record short is tolerated and discarded. Any record that is complete but fails validation aborts replay with an exception; the server does not catch it during startup, so the process terminates and the log must be repaired or removed by an operator. Replay does not truncate the file.
+Torn-tail recovery: a crash during an append leaves an incomplete record at the physical end of the log. Replay stops at the last verified record and truncates the file to that byte offset (`ftruncate`, or `_chsize_s` on Windows) so that subsequent appends do not follow garbage. A record that is complete but fails validation is treated as hard corruption and aborts replay; the server does not catch the exception during startup, so the process terminates and the log must be repaired or removed by an operator. A bad dimension field is always treated as hard corruption, even at the tail of the log.
 
-Checkpointing (`VectorEngine::create_checkpoint`) serializes the index with `Serializer::save` and then truncates the WAL (`clear`, which reopens the file with `"wb+"`). Both steps run while holding the WAL mutex and a shared index lock. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
+Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. The parent directory is not synchronized after the rename, so durability of the rename itself across power loss depends on the filesystem. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
 
 ### 2.5 Thread pool and concurrency model
 
@@ -142,8 +157,9 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 - `HttpServer` runs a blocking accept loop. Each accepted connection is enqueued as a task. `main` creates the server with 4 worker threads.
 - `WorkerThreadPool` is a fixed set of `std::thread` workers consuming a single `std::queue<std::function<void()>>` guarded by one `std::mutex` and a `std::condition_variable`. It is a plain FIFO pool; there is no work stealing and no per-thread queues. Destruction sets a stop flag, wakes all workers, and joins them after the queue drains.
 - Each connection is handled as one request/response exchange (read until `Content-Length` bytes are received, route, send, close). There is no keep-alive. Request bytes are read in 4096-byte chunks; request size is not capped.
-- `VectorEngine` uses two locks. `index_rw_lock_` (`std::shared_mutex`) allows concurrent `search` calls and gives `insert` exclusive access while it mutates the index. `wal_mutex_` serializes WAL appends. Insert acquires the WAL mutex, appends and syncs, releases it, then takes the exclusive index lock. Because the fsync happens outside the index lock, concurrent searches are not blocked by disk I/O.
-- Because WAL append and index update are separate critical sections, concurrent inserts can reach the log and the index in different orders. Ids are explicit, so replay reconstructs the same set of vectors, though not necessarily the same graph.
+- `VectorEngine` uses two locks. `index_rw_lock_` (`std::shared_mutex`) allows concurrent `search` calls and gives `insert` exclusive access while it mutates the index. `wal_mutex_` serializes WAL appends. Insert acquires the WAL mutex, appends and syncs, then takes the exclusive index lock while still holding the WAL mutex (lock order: `wal_mutex_` then `index_rw_lock_`, identical in `create_checkpoint`). The fsync happens before the index lock is taken, so concurrent searches are not blocked by disk I/O, but inserts are fully serialized with one another and with checkpoints.
+- Because both steps of an insert run under the WAL mutex, log order and index application order are identical, and replay reconstructs the same insertion sequence (node levels are re-randomized, so the graph topology differs).
+- Failure isolation: `WorkerThreadPool::worker_loop` catches exceptions escaping a task and logs them, so a failing request cannot terminate a worker. `Router` maps `std::invalid_argument` to HTTP 400 and other engine exceptions to HTTP 500, with a catch-all around routing.
 
 ## 3. Architecture
 
@@ -166,9 +182,9 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
                                 |                   |
                                 |                   v
                                 |        VectorEngine::insert
-                                |          1. wal_mutex_  -> WalManager::append_insert
+                                |          1. wal_mutex_  -> WalManager::append_insert (held)
                                 |             [op|crc32c|id|dim|floats|0xAA] + fdatasync
-                                |          2. unique_lock(index_rw_lock_)
+                                |          2. unique_lock(index_rw_lock_) -> index.add
                                 |                   |
                                 v                   v
                           +--------------------------------------------+
@@ -184,8 +200,8 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
                           +--------------------------------------------+
 
   Startup:   index.bin (if present) or built-in concept index
-             -> WalManager::replay (verify CRC32-C) -> index.add per record
-  Checkpoint: Serializer::save(index.bin) -> WAL truncate
+             -> WalManager::replay (verify CRC32-C, truncate torn tail) -> index.add per record
+  Checkpoint: Serializer::save (index.bin.tmp, fsync, rename) -> WAL truncate
 ```
 
 ## 4. Performance and Telemetry
@@ -302,7 +318,7 @@ The dashboard (`web/`, React 19, TypeScript, Vite, Three.js, GSAP) visualizes th
 
 ```
 include/engine/       public headers: core, distance, index, quantization, storage
-src/                  engine implementation
+src/                  engine implementation (src/index/hnsw_common.hpp: shared HNSW graph core)
 src/server/           HTTP server, router, worker pool, concept registry
 web/                  React + Three.js dashboard (builds into public/)
 benchmarks/           SIFT benchmark

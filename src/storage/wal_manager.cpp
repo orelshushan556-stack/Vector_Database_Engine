@@ -222,7 +222,6 @@ void WalManager::replay(const std::function<void(uint64_t, std::span<const float
         }
 
         const size_t vector_bytes_len = static_cast<size_t>(dim) * sizeof(float);
-        const size_t remaining_record_len = vector_bytes_len + 1;
 
         const size_t full_payload_len = sizeof(id) + sizeof(dim) + vector_bytes_len;
         buffer_.resize(full_payload_len);
