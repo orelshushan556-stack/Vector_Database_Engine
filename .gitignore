@@ -42,3 +42,15 @@ data/
 *.fvecs
 *.ivecs
 
+
+# Database runtime artifacts
+*.wal
+nexus.wal
+
+# Whitelist web data directory from global data/ ignore rule
+!web/src/data/
+!web/src/data/**
+
+# Local Blender experiment artifacts (unreferenced by the build)
+generate_bonsai.py
+web/archive/
