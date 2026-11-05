@@ -22,15 +22,13 @@ void VectorEngine::insert(uint64_t id, std::span<const float> vector) {
         throw std::invalid_argument("Vector dimension does not match engine dimension");
     }
 
-    {
-        std::lock_guard<std::mutex> wal_lock(wal_mutex_);
-        wal_.append_insert(id, vector);
-    }
+    // Hold the WAL mutex across both steps so a checkpoint cannot snapshot and
+    // truncate the WAL between the append and the in-memory add.
+    std::lock_guard<std::mutex> wal_lock(wal_mutex_);
+    wal_.append_insert(id, vector);
 
-    {
-        std::unique_lock<std::shared_mutex> index_lock(index_rw_lock_);
-        index_->add(id, vector);
-    }
+    std::unique_lock<std::shared_mutex> index_lock(index_rw_lock_);
+    index_->add(id, vector);
 }
 
 std::vector<SearchResult> VectorEngine::search(std::span<const float> query, std::size_t k) const {

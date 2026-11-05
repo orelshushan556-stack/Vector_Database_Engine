@@ -24,8 +24,10 @@ protected:
 
 TEST_F(SerializerTest, RoundTripInMemoryExactMatch) {
     FlatIndex original(3, MetricType::L2);
-    original.add(101, {1.0f, 2.0f, 3.0f});
-    original.add(102, {4.0f, 5.0f, 6.0f});
+    const std::vector<float> v101 = {1.0f, 2.0f, 3.0f};
+    original.add(101, VectorView(v101.data(), v101.size()));
+    const std::vector<float> v102 = {4.0f, 5.0f, 6.0f};
+    original.add(102, VectorView(v102.data(), v102.size()));
 
     std::stringstream stream(std::ios::in | std::ios::out | std::ios::binary);
     Serializer::serialize(original, stream);
@@ -61,8 +63,10 @@ TEST_F(SerializerTest, RoundTripInMemoryExactMatch) {
 
 TEST_F(SerializerTest, FileSystemSaveAndLoad) {
     FlatIndex original(4, MetricType::Cosine);
-    original.add(1, {0.1f, 0.2f, 0.3f, 0.4f});
-    original.add(2, {0.5f, 0.6f, 0.7f, 0.8f});
+    const std::vector<float> v1 = {0.1f, 0.2f, 0.3f, 0.4f};
+    original.add(1, VectorView(v1.data(), v1.size()));
+    const std::vector<float> v2 = {0.5f, 0.6f, 0.7f, 0.8f};
+    original.add(2, VectorView(v2.data(), v2.size()));
 
     std::filesystem::path file_path = temp_dir / "test_index.bin";
 

@@ -1,11 +1,35 @@
 ﻿#include "engine/storage/serializer.hpp"
+#include <cstdio>
+#include <filesystem>
 #include <fstream>
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 #include <span>
 #include <stdexcept>
 
 namespace engine {
 
 namespace {
+    void fsync_file(const std::filesystem::path& path) {
+        std::FILE* f = std::fopen(path.string().c_str(), "rb+");
+        if (!f) {
+            throw std::runtime_error("Cannot reopen snapshot for fsync: " + path.string());
+        }
+        std::fflush(f);
+#if defined(_WIN32)
+        const int rc = _commit(_fileno(f));
+#else
+        const int rc = fsync(fileno(f));
+#endif
+        std::fclose(f);
+        if (rc != 0) {
+            throw std::runtime_error("fsync failed for snapshot: " + path.string());
+        }
+    }
+
     constexpr uint32_t MAGIC_FLAT     = 0x56454349; // "VECI"
     constexpr uint32_t MAGIC_HNSW     = 0x484E5357; // "HNSW"
     constexpr uint32_t MAGIC_HNSW_SQ8 = 0x53513848; // "SQ8H"
@@ -47,14 +71,26 @@ namespace {
 // ============================================================================
 
 void Serializer::save(const IndexBase& index, const std::filesystem::path& file_path) {
-    if (const auto* flat = dynamic_cast<const FlatIndex*>(&index)) {
-        save_flat_index(*flat, file_path);
-    } else if (const auto* hnsw = dynamic_cast<const HNSWIndex*>(&index)) {
-        save_hnsw_index(*hnsw, file_path);
-    } else if (const auto* sq8 = dynamic_cast<const HNSWIndexSQ8*>(&index)) {
-        save_hnsw_sq8_index(*sq8, file_path);
-    } else {
-        throw std::invalid_argument("Unsupported index type for universal serialization");
+    std::filesystem::path tmp_path = file_path;
+    tmp_path += ".tmp";
+
+    try {
+        if (const auto* flat = dynamic_cast<const FlatIndex*>(&index)) {
+            save_flat_index(*flat, tmp_path);
+        } else if (const auto* hnsw = dynamic_cast<const HNSWIndex*>(&index)) {
+            save_hnsw_index(*hnsw, tmp_path);
+        } else if (const auto* sq8 = dynamic_cast<const HNSWIndexSQ8*>(&index)) {
+            save_hnsw_sq8_index(*sq8, tmp_path);
+        } else {
+            throw std::invalid_argument("Unsupported index type for universal serialization");
+        }
+
+        fsync_file(tmp_path);
+        std::filesystem::rename(tmp_path, file_path);
+    } catch (...) {
+        std::error_code ec;
+        std::filesystem::remove(tmp_path, ec);
+        throw;
     }
 }
 

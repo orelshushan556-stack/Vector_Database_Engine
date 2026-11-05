@@ -118,3 +118,31 @@ TEST_F(WalManagerBasicTest, ReplayDetectsDataCorruption) {
         }, std::runtime_error);
     }
 }
+
+TEST_F(WalManagerBasicTest, ReplayTruncatesTornTail) {
+    std::vector<float> vec = {1.0f, 2.0f, 3.0f, 4.0f};
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        wal.append_insert(1, vec);
+        wal.append_insert(2, vec);
+    }
+    const auto full_size = std::filesystem::file_size(test_wal_path);
+    std::filesystem::resize_file(test_wal_path, full_size - 5);
+
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        std::vector<uint64_t> ids;
+        EXPECT_NO_THROW(wal.replay([&](uint64_t id, std::span<const float>) { ids.push_back(id); }));
+        ASSERT_EQ(ids.size(), 1u);
+        EXPECT_EQ(ids[0], 1u);
+
+        wal.append_insert(3, vec);
+    }
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        std::vector<uint64_t> ids;
+        wal.replay([&](uint64_t id, std::span<const float>) { ids.push_back(id); });
+        ASSERT_EQ(ids.size(), 2u);
+        EXPECT_EQ(ids[1], 3u);
+    }
+}

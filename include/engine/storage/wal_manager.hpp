@@ -42,6 +42,7 @@ private:
     std::vector<uint8_t> buffer_;
 
     void sync_to_disk();
+    void truncate_wal(uint64_t size);
 };
 
 } // namespace engine::storage

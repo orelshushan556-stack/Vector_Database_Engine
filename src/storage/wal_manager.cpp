@@ -171,12 +171,17 @@ void WalManager::replay(const std::function<void(uint64_t, std::span<const float
     constexpr size_t header_size = 1 + sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint32_t);
     std::array<uint8_t, header_size> header_buf{};
 
+    // Byte offset just past the last fully verified record.
+    uint64_t valid_offset = 0;
+    bool torn_tail = false;
+
     while (true) {
         size_t bytes_read = std::fread(header_buf.data(), 1, header_size, read_file);
         if (bytes_read == 0) {
             break;
         }
         if (bytes_read < header_size) {
+            torn_tail = true;
             break;
         }
 
@@ -214,12 +219,17 @@ void WalManager::replay(const std::function<void(uint64_t, std::span<const float
         size_t payload_offset = sizeof(id) + sizeof(dim);
         size_t vector_read = std::fread(buffer_.data() + payload_offset, 1, vector_bytes_len, read_file);
         if (vector_read != vector_bytes_len) {
+            torn_tail = true;
             break;
         }
 
         uint8_t end_byte = 0;
         size_t end_read = std::fread(&end_byte, 1, 1, read_file);
-        if (end_read != 1 || end_byte != 0xAA) {
+        if (end_read != 1) {
+            torn_tail = true;
+            break;
+        }
+        if (end_byte != 0xAA) {
             throw std::runtime_error("Corrupted WAL record: invalid end byte");
         }
 
@@ -233,7 +243,38 @@ void WalManager::replay(const std::function<void(uint64_t, std::span<const float
             dim
         );
 
+        valid_offset += header_size + vector_bytes_len + 1;
+
         callback(id, vec_span);
+    }
+
+    if (torn_tail) {
+        std::cerr << "[WAL] Incomplete record at end of log (torn tail); truncating to "
+                  << valid_offset << " bytes\n";
+        std::fclose(read_file);
+        closer.f = nullptr;
+        truncate_wal(valid_offset);
+    }
+}
+
+void WalManager::truncate_wal(uint64_t size) {
+    if (file_) {
+        std::fflush(file_);
+    }
+
+    std::FILE* f = std::fopen(wal_path_.c_str(), "rb+");
+    if (!f) {
+        throw std::runtime_error("Failed to open WAL for torn-tail truncation: " + wal_path_);
+    }
+    std::fflush(f);
+#if defined(_WIN32)
+    const int rc = _chsize_s(_fileno(f), static_cast<__int64>(size));
+#else
+    const int rc = ftruncate(fileno(f), static_cast<off_t>(size));
+#endif
+    std::fclose(f);
+    if (rc != 0) {
+        throw std::runtime_error("Failed to truncate torn WAL tail: " + wal_path_);
     }
 }
 
