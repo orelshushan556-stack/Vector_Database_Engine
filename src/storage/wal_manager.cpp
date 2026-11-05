@@ -6,11 +6,14 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
 #include <ranges>
 #include <span>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 #if defined(_WIN32)
@@ -76,17 +79,28 @@ void WalManager::sync_to_disk() {
     }
 
 #if defined(_WIN32)
-    int fd = _fileno(file_);
-    if (fd != -1) {
-        HANDLE handle = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
-        if (handle != INVALID_HANDLE_VALUE) {
-            FlushFileBuffers(handle);
-        }
+    const int fd = _fileno(file_);
+    if (fd == -1) {
+        throw std::runtime_error("WAL sync failed: invalid file descriptor");
+    }
+    HANDLE handle = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
+    if (handle == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("WAL sync failed: invalid OS handle");
+    }
+    if (FlushFileBuffers(handle) == 0) {
+        const DWORD err = GetLastError();
+        std::cerr << "[WAL] FlushFileBuffers failed with error " << err << "\n";
+        throw std::system_error(static_cast<int>(err), std::system_category(), "WAL FlushFileBuffers failed");
     }
 #else
-    int fd = fileno(file_);
-    if (fd != -1) {
-        fdatasync(fd);
+    const int fd = fileno(file_);
+    if (fd == -1) {
+        throw std::runtime_error("WAL sync failed: invalid file descriptor");
+    }
+    if (fdatasync(fd) != 0) {
+        const int err = errno;
+        std::cerr << "[WAL] fdatasync failed: " << std::strerror(err) << "\n";
+        throw std::system_error(err, std::generic_category(), "WAL fdatasync failed");
     }
 #endif
 }

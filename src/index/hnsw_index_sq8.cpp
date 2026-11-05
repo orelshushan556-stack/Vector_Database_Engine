@@ -1,6 +1,7 @@
 ﻿#include "engine/index/hnsw_index_sq8.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include "engine/storage/serializer.hpp"
+#include "hnsw_common.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -9,15 +10,6 @@
 #include <stdexcept>
 
 namespace engine {
-
-namespace {
-    struct ThreadLocalVisited {
-        std::vector<uint32_t> tags;
-        uint32_t current_tag{0};
-    };
-
-    thread_local ThreadLocalVisited tl_visited;
-}
 
 HNSWIndexSQ8::HNSWIndexSQ8(std::size_t dimension,
                            MetricType metric,
@@ -158,62 +150,27 @@ std::vector<std::pair<float, uint32_t>> HNSWIndexSQ8::search_layer(
     std::size_t num_candidates,
     int level) const {
 
-    using DistPair = std::pair<float, uint32_t>;
+    // L2 reads the 8-bit codes; the other metrics read the raw floats.
+    const bool use_codes = (metric_ == MetricType::L2);
+    const std::size_t code_bytes = dimension_;
+    const std::size_t raw_bytes = dimension_ * sizeof(float);
 
-    std::priority_queue<DistPair, std::vector<DistPair>, std::greater<DistPair>> candidates;
-    std::priority_queue<DistPair, std::vector<DistPair>, std::less<DistPair>> top_results;
-
-    if (tl_visited.tags.size() < count_) {
-        tl_visited.tags.resize(count_, 0);
-    }
-
-    ++tl_visited.current_tag;
-    if (tl_visited.current_tag == 0) {
-        std::fill(tl_visited.tags.begin(), tl_visited.tags.end(), 0);
-        tl_visited.current_tag = 1;
-    }
-
-    for (uint32_t ep : enter_points) {
-        float d = compute_quantized_distance(query, ep);
-        tl_visited.tags[ep] = tl_visited.current_tag;
-        candidates.emplace(d, ep);
-        top_results.emplace(d, ep);
-    }
-
-    while (!candidates.empty()) {
-        auto [c_dist, c_node] = candidates.top();
-        candidates.pop();
-
-        if (c_dist > top_results.top().first && top_results.size() >= num_candidates) {
-            break;
-        }
-
-        for (uint32_t neighbor : get_links(c_node, level)) {
-            if (tl_visited.tags[neighbor] != tl_visited.current_tag) {
-                tl_visited.tags[neighbor] = tl_visited.current_tag;
-
-                float d = compute_quantized_distance(query, neighbor);
-
-                if (top_results.size() < num_candidates || d < top_results.top().first) {
-                    candidates.emplace(d, neighbor);
-                    top_results.emplace(d, neighbor);
-
-                    if (top_results.size() > num_candidates) {
-                        top_results.pop();
-                    }
-                }
+    auto top = hnsw_detail::search_layer_impl(
+        std::span<const uint32_t>(enter_points),
+        num_candidates,
+        count_,
+        [&](uint32_t node) { return get_links(node, level); },
+        [&](uint32_t node) { return compute_quantized_distance(query, node); },
+        [&](uint32_t node) {
+            const std::size_t base = static_cast<std::size_t>(node) * dimension_;
+            if (use_codes) {
+                hnsw_detail::prefetch_bytes(quantized_storage_.data() + base, code_bytes);
+            } else {
+                hnsw_detail::prefetch_bytes(raw_storage_.data() + base, raw_bytes);
             }
-        }
-    }
+        });
 
-    std::vector<DistPair> results;
-    results.reserve(top_results.size());
-    while (!top_results.empty()) {
-        results.push_back(top_results.top());
-        top_results.pop();
-    }
-    std::reverse(results.begin(), results.end());
-    return results;
+    return hnsw_detail::drain_ascending(std::move(top));
 }
 
 void HNSWIndexSQ8::add_link(uint32_t src, uint32_t dst, int level) {
@@ -229,30 +186,9 @@ void HNSWIndexSQ8::add_link(uint32_t src, uint32_t dst, int level) {
         graph_data = upper_graph_[src].data();
     }
 
-    uint32_t& degree = graph_data[offset];
-    VectorView src_vec = get_raw_vector(src);
-
-    if (degree < max_links) {
-        graph_data[offset + 1 + degree] = dst;
-        degree++;
-    } else {
-        float max_dist = std::numeric_limits<float>::lowest();
-        uint32_t worst_idx = 0;
-        float dist_new = compute_quantized_distance(src_vec, dst);
-
-        for (uint32_t i = 0; i < degree; ++i) {
-            uint32_t neighbor = graph_data[offset + 1 + i];
-            float dist = compute_quantized_distance(src_vec, neighbor);
-            if (dist > max_dist) {
-                max_dist = dist;
-                worst_idx = i;
-            }
-        }
-
-        if (dist_new < max_dist) {
-            graph_data[offset + 1 + worst_idx] = dst;
-        }
-    }
+    const VectorView src_vec = get_raw_vector(src);
+    hnsw_detail::add_link_impl(graph_data, offset, max_links, dst,
+                               [&](uint32_t node) { return compute_quantized_distance(src_vec, node); });
 }
 
 void HNSWIndexSQ8::add(VectorId id, VectorView vector) {
@@ -289,20 +225,10 @@ void HNSWIndexSQ8::add(VectorId id, VectorView vector) {
     uint32_t curr_ep = enter_point_;
     float curr_dist = compute_quantized_distance(vector, curr_ep);
 
-    for (int lc = max_level_; lc > new_level; --lc) {
-        bool changed = true;
-        while (changed) {
-            changed = false;
-            for (uint32_t neighbor : get_links(curr_ep, lc)) {
-                float dist = compute_quantized_distance(vector, neighbor);
-                if (dist < curr_dist) {
-                    curr_dist = dist;
-                    curr_ep = neighbor;
-                    changed = true;
-                }
-            }
-        }
-    }
+    hnsw_detail::greedy_descend(
+        curr_ep, curr_dist, max_level_, new_level,
+        [&](uint32_t node, int lc) { return get_links(node, lc); },
+        [&](uint32_t node) { return compute_quantized_distance(vector, node); });
 
     int start_level = std::min(max_level_, new_level);
     std::vector<uint32_t> enter_points = {curr_ep};
@@ -314,15 +240,9 @@ void HNSWIndexSQ8::add(VectorId id, VectorView vector) {
             enter_points.push_back(node);
         }
 
-        std::size_t target_m = (lc == 0) ? max_m0_ : max_m_;
-        if (candidates.size() > target_m) {
-            candidates.resize(target_m);
-        }
-
-        for (const auto& [d, neighbor] : candidates) {
-            add_link(new_id, neighbor, lc);
-            add_link(neighbor, new_id, lc);
-        }
+        const std::size_t target_m = (lc == 0) ? max_m0_ : max_m_;
+        hnsw_detail::connect_new_node(new_id, candidates, target_m,
+                                      [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc); });
     }
 
     if (new_level > max_level_) {
@@ -339,20 +259,10 @@ std::vector<SearchResult> HNSWIndexSQ8::search(VectorView query, std::size_t k) 
     uint32_t curr_ep = enter_point_;
     float curr_dist = compute_quantized_distance(query, curr_ep);
 
-    for (int lc = max_level_; lc > 0; --lc) {
-        bool changed = true;
-        while (changed) {
-            changed = false;
-            for (uint32_t neighbor : get_links(curr_ep, lc)) {
-                float dist = compute_quantized_distance(query, neighbor);
-                if (dist < curr_dist) {
-                    curr_dist = dist;
-                    curr_ep = neighbor;
-                    changed = true;
-                }
-            }
-        }
-    }
+    hnsw_detail::greedy_descend(
+        curr_ep, curr_dist, max_level_, 0,
+        [&](uint32_t node, int lc) { return get_links(node, lc); },
+        [&](uint32_t node) { return compute_quantized_distance(query, node); });
 
     std::size_t num_candidates = static_cast<std::size_t>(static_cast<float>(std::max(ef_search_, k)) * re_rank_factor_);
     auto candidates = search_layer(query, {curr_ep}, num_candidates, 0);

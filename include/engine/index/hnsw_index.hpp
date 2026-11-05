@@ -42,6 +42,7 @@ private:
 
     [[nodiscard]] int get_random_level();
 
+    [[nodiscard]] float distance_to(VectorView query, uint32_t internal_id) const;
     [[nodiscard]] std::span<uint32_t> get_links(uint32_t internal_id, int level) noexcept;
     [[nodiscard]] std::span<const uint32_t> get_links(uint32_t internal_id, int level) const noexcept;
 

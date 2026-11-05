@@ -1,6 +1,7 @@
 ﻿#include "engine/index/hnsw_index.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include "engine/storage/serializer.hpp"
+#include "hnsw_common.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,15 +11,6 @@
 #include <string>
 
 namespace engine {
-
-namespace {
-    struct ThreadLocalVisited {
-        std::vector<uint32_t> tags;
-        uint32_t current_tag{0};
-    };
-
-    thread_local ThreadLocalVisited tl_visited;
-}
 
 HNSWIndex::HNSWIndex(std::size_t dimension, MetricType metric, std::size_t m, std::size_t ef_construction, std::size_t ef_search)
     : dimension_(dimension),
@@ -96,74 +88,30 @@ std::priority_queue<std::pair<float, uint32_t>> HNSWIndex::search_layer(
     std::size_t ef,
     int level) const {
 
-    using DistPair = std::pair<float, uint32_t>;
+    const std::size_t vec_bytes = dimension_ * sizeof(float);
 
-    std::vector<DistPair> top_container;
-    top_container.reserve(ef + 1);
-    std::priority_queue<DistPair, std::vector<DistPair>, std::less<DistPair>> top_candidates(
-        std::less<DistPair>{}, std::move(top_container));
+    return hnsw_detail::search_layer_impl(
+        std::span<const uint32_t>(&enter_point, 1),
+        ef,
+        ids_.size(),
+        [&](uint32_t node) { return get_links(node, level); },
+        [&](uint32_t node) { return distance_to(query, node); },
+        [&](uint32_t node) {
+            hnsw_detail::prefetch_bytes(&storage_[static_cast<std::size_t>(node) * dimension_], vec_bytes);
+        });
+}
 
-    std::vector<DistPair> cand_container;
-    cand_container.reserve(ef * 2);
-    std::priority_queue<DistPair, std::vector<DistPair>, std::greater<DistPair>> candidates(
-        std::greater<DistPair>{}, std::move(cand_container));
-
-    if (tl_visited.tags.size() < ids_.size()) {
-        tl_visited.tags.resize(ids_.size(), 0);
+float HNSWIndex::distance_to(VectorView query, uint32_t internal_id) const {
+    VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
+    switch (metric_) {
+        case MetricType::L2:
+            return l2_distance_squared_avx2(query, target);
+        case MetricType::Cosine:
+            return cosine_distance_avx2(query, target);
+        case MetricType::DotProduct:
+            return -dot_product_avx2(query, target);
     }
-
-    ++tl_visited.current_tag;
-    if (tl_visited.current_tag == 0) {
-        std::fill(tl_visited.tags.begin(), tl_visited.tags.end(), 0);
-        tl_visited.current_tag = 1;
-    }
-
-    auto compute_dist = [&](uint32_t internal_id) -> float {
-        VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
-        switch (metric_) {
-            case MetricType::L2:
-                return l2_distance_squared_avx2(query, target);
-            case MetricType::Cosine:
-                return cosine_distance_avx2(query, target);
-            case MetricType::DotProduct:
-                return -dot_product_avx2(query, target);
-        }
-        return 0.0f;
-    };
-
-    float ep_dist = compute_dist(enter_point);
-    tl_visited.tags[enter_point] = tl_visited.current_tag;
-    candidates.emplace(ep_dist, enter_point);
-    top_candidates.emplace(ep_dist, enter_point);
-
-    while (!candidates.empty()) {
-        auto [curr_dist, curr_node] = candidates.top();
-        candidates.pop();
-
-        float worst_dist = top_candidates.top().first;
-        if (curr_dist > worst_dist && top_candidates.size() >= ef) {
-            break;
-        }
-
-        for (uint32_t neighbor_id : get_links(curr_node, level)) {
-            if (tl_visited.tags[neighbor_id] != tl_visited.current_tag) {
-                tl_visited.tags[neighbor_id] = tl_visited.current_tag;
-
-                float dist = compute_dist(neighbor_id);
-
-                if (top_candidates.size() < ef || dist < top_candidates.top().first) {
-                    candidates.emplace(dist, neighbor_id);
-                    top_candidates.emplace(dist, neighbor_id);
-
-                    if (top_candidates.size() > ef) {
-                        top_candidates.pop();
-                    }
-                }
-            }
-        }
-    }
-
-    return top_candidates;
+    return 0.0f;
 }
 
 void HNSWIndex::add(VectorId id, VectorView vector) {
@@ -198,23 +146,9 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
 
     const int start_level = std::min(max_level_, new_level);
 
-    auto compute_dist = [&](uint32_t id1, uint32_t id2) -> float {
-        VectorView v1(&storage_[static_cast<std::size_t>(id1) * dimension_], dimension_);
-        VectorView v2(&storage_[static_cast<std::size_t>(id2) * dimension_], dimension_);
-        switch (metric_) {
-            case MetricType::L2:
-                return l2_distance_squared_avx2(v1, v2);
-            case MetricType::Cosine:
-                return cosine_distance_avx2(v1, v2);
-            case MetricType::DotProduct:
-                return -dot_product_avx2(v1, v2);
-        }
-        return 0.0f;
-    };
-
     auto add_link = [&](uint32_t src, uint32_t dst, int level, std::size_t max_links) {
-        std::size_t offset = 0;
         uint32_t* graph_data = nullptr;
+        std::size_t offset = 0;
 
         if (level == 0) {
             offset = static_cast<std::size_t>(src) * (max_m0_ + 1);
@@ -224,52 +158,22 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
             graph_data = upper_graph_[src].data();
         }
 
-        uint32_t& degree = graph_data[offset];
-
-        if (degree < max_links) {
-            graph_data[offset + 1 + degree] = dst;
-            degree++;
-        } else {
-            float max_dist = std::numeric_limits<float>::lowest();
-            uint32_t worst_idx = 0;
-            float dist_new = compute_dist(src, dst);
-
-            for (uint32_t i = 0; i < degree; ++i) {
-                uint32_t neighbor = graph_data[offset + 1 + i];
-                float dist = compute_dist(src, neighbor);
-                if (dist > max_dist) {
-                    max_dist = dist;
-                    worst_idx = i;
-                }
-            }
-
-            if (dist_new < max_dist) {
-                graph_data[offset + 1 + worst_idx] = dst;
-            }
-        }
+        const VectorView src_vec(&storage_[static_cast<std::size_t>(src) * dimension_], dimension_);
+        hnsw_detail::add_link_impl(graph_data, offset, max_links, dst,
+                                   [&](uint32_t node) { return distance_to(src_vec, node); });
     };
 
     for (int lc = start_level; lc >= 0; --lc) {
-        auto can = search_layer(vector, curr_ep, ef_construction_, lc);
         const std::size_t target_m = (lc == 0) ? max_m0_ : m_;
-        
-        while (can.size() > target_m) {
-            can.pop();
-        }
-        
-        std::vector<uint32_t> neighbors;
-        neighbors.reserve(can.size());
-        
-        while (!can.empty()) {
-            curr_ep = can.top().second;
-            neighbors.push_back(curr_ep);
-            can.pop();
+        const auto candidates = hnsw_detail::drain_ascending(
+            search_layer(vector, curr_ep, ef_construction_, lc));
+
+        if (!candidates.empty()) {
+            curr_ep = candidates.front().second;
         }
 
-        for (uint32_t neighbor : neighbors) {
-            add_link(cur_internal_id, neighbor, lc, target_m);
-            add_link(neighbor, cur_internal_id, lc, target_m);
-        }
+        hnsw_detail::connect_new_node(cur_internal_id, candidates, target_m,
+                                      [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc, target_m); });
     }
 
     if (new_level > max_level_) {
@@ -283,36 +187,13 @@ std::vector<SearchResult> HNSWIndex::search(VectorView query, std::size_t k) con
         return {};
     }
 
-    auto compute_dist = [&](uint32_t internal_id) -> float {
-        VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
-        switch (metric_) {
-            case MetricType::L2:
-                return l2_distance_squared_avx2(query, target);
-            case MetricType::Cosine:
-                return cosine_distance_avx2(query, target);
-            case MetricType::DotProduct:
-                return -dot_product_avx2(query, target);
-        }
-        return 0.0f;
-    };
-
     uint32_t curr_ep = static_cast<uint32_t>(enter_point_);
-    float curr_dist = compute_dist(curr_ep);
+    float curr_dist = distance_to(query, curr_ep);
 
-    for (int lc = max_level_; lc > 0; --lc) {
-        bool changed = true;
-        while (changed) {
-            changed = false;
-            for (uint32_t neighbor_id : get_links(curr_ep, lc)) {
-                float dist = compute_dist(neighbor_id);
-                if (dist < curr_dist) {
-                    curr_dist = dist;
-                    curr_ep = neighbor_id;
-                    changed = true;
-                }
-            }
-        }
-    }
+    hnsw_detail::greedy_descend(
+        curr_ep, curr_dist, max_level_, 0,
+        [&](uint32_t node, int lc) { return get_links(node, lc); },
+        [&](uint32_t node) { return distance_to(query, node); });
 
     std::size_t ef = std::max(ef_search_, k);
     auto top_candidates = search_layer(query, curr_ep, ef, 0);
