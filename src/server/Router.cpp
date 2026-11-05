@@ -1,28 +1,12 @@
-#include "Router.hpp"
+﻿#include "Router.hpp"
 #include "JsonUtils.hpp"
+#include "ConceptRegistry.hpp"
 
 #include <chrono>
-#include <format>
-#include <string>
-#include <vector>
+#include <sstream>
 
 Router::Router(std::shared_ptr<engine::VectorEngine> engine)
     : engine_(std::move(engine)), file_handler_("public") {
-}
-
-constexpr HttpMethod Router::resolve_method(std::string_view method) noexcept {
-    if (method == "GET")     return HttpMethod::Get;
-    if (method == "POST")    return HttpMethod::Post;
-    if (method == "OPTIONS") return HttpMethod::Options;
-    return HttpMethod::Unknown;
-}
-
-constexpr RouteEndpoint Router::resolve_endpoint(std::string_view path) noexcept {
-    if (path == "/api/status")     return RouteEndpoint::ApiStatus;
-    if (path == "/api/search")     return RouteEndpoint::ApiSearch;
-    if (path == "/api/insert")     return RouteEndpoint::ApiInsert;
-    if (path == "/api/checkpoint") return RouteEndpoint::ApiCheckpoint;
-    return RouteEndpoint::StaticAsset;
 }
 
 void Router::apply_cors_headers(HttpResponse& res) {
@@ -42,16 +26,26 @@ HttpResponse Router::handle_api_status() const {
     res.set_header("Content-Type", "application/json");
     apply_cors_headers(res);
 
+    std::ostringstream ss;
+    ss << "{\"status\":\"ok\",\"server\":\"Nexus Vector Database Engine\"";
     if (engine_) {
-        res.set_body(std::format(
-            "{{\"status\":\"ok\",\"server\":\"Nexus Vector Database Engine\",\"engine_ready\":true,\"dimension\":{},\"total_vectors\":{}}}",
-            engine_->dimension(),
-            engine_->size()
-        ));
+        ss << ",\"engine_ready\":true"
+           << ",\"dimension\":" << engine_->dimension()
+           << ",\"total_vectors\":" << engine_->size();
     } else {
-        res.set_body("{\"status\":\"ok\",\"server\":\"Nexus Vector Database Engine\",\"engine_ready\":false}");
+        ss << ",\"engine_ready\":false";
     }
+    ss << "}";
 
+    res.set_body(ss.str());
+    return res;
+}
+
+HttpResponse Router::handle_api_concepts() const {
+    HttpResponse res;
+    res.set_header("Content-Type", "application/json");
+    apply_cors_headers(res);
+    res.set_body(ConceptRegistry::instance().get_precompiled_json());
     return res;
 }
 
@@ -76,18 +70,17 @@ HttpResponse Router::handle_api_search(const HttpRequest& req) const {
 
     if (query_vec.size() != engine_->dimension()) {
         res.set_status(422, "Unprocessable Entity");
-        res.set_body(std::format(
-            "{{\"status\":\"error\",\"message\":\"Dimension mismatch. Expected {}, received {}.\"}}\"",
-            engine_->dimension(),
-            query_vec.size()
-        ));
+        std::ostringstream ss;
+        ss << "{\"status\":\"error\",\"message\":\"Dimension mismatch. Expected " 
+           << engine_->dimension() << ", received " << query_vec.size() << ".\"}";
+        res.set_body(ss.str());
         return res;
     }
 
-    const auto t0 = std::chrono::steady_clock::now();
-    const auto results = engine_->search(query_vec, k);
-    const auto t1 = std::chrono::steady_clock::now();
-    const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+    auto t0 = std::chrono::steady_clock::now();
+    auto results = engine_->search(query_vec, k);
+    auto t1 = std::chrono::steady_clock::now();
+    auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
 
     res.set_body(server::json::build_search_response(results, k, duration_us));
     return res;
@@ -114,28 +107,27 @@ HttpResponse Router::handle_api_insert(const HttpRequest& req) const {
 
     if (vec.size() != engine_->dimension()) {
         res.set_status(422, "Unprocessable Entity");
-        res.set_body(std::format(
-            "{{\"status\":\"error\",\"message\":\"Dimension mismatch. Expected {}, received {}.\"}}\"",
-            engine_->dimension(),
-            vec.size()
-        ));
+        std::ostringstream ss;
+        ss << "{\"status\":\"error\",\"message\":\"Dimension mismatch. Expected " 
+           << engine_->dimension() << ", received " << vec.size() << ".\"}";
+        res.set_body(ss.str());
         return res;
     }
 
-    const auto t0 = std::chrono::steady_clock::now();
+    auto t0 = std::chrono::steady_clock::now();
     engine_->insert(id, vec);
-    const auto t1 = std::chrono::steady_clock::now();
-    const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+    auto t1 = std::chrono::steady_clock::now();
+    auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
 
-    res.set_body(std::format(
-        "{{\"status\":\"success\",\"message\":\"Vector inserted and persisted to WAL\",\"id\":{},\"took_us\":{}}}",
-        id,
-        duration_us
-    ));
+    std::ostringstream ss;
+    ss << "{\"status\":\"success\",\"message\":\"Vector inserted and persisted to WAL\",\"id\":"
+       << id << ",\"took_us\":" << duration_us << "}";
+    res.set_body(ss.str());
     return res;
 }
 
-HttpResponse Router::handle_api_checkpoint() const {
+HttpResponse Router::handle_api_checkpoint(const HttpRequest& req) const {
+    (void)req;
     HttpResponse res;
     res.set_header("Content-Type", "application/json");
     apply_cors_headers(res);
@@ -151,61 +143,53 @@ HttpResponse Router::handle_api_checkpoint() const {
         res.set_body("{\"status\":\"success\",\"message\":\"Checkpoint created successfully and WAL truncated.\"}");
     } catch (const std::exception& e) {
         res.set_status(500, "Internal Server Error");
-        res.set_body(std::format("{{\"status\":\"error\",\"message\":\"Checkpoint failed: {}\"}}", e.what()));
+        std::ostringstream ss;
+        ss << "{\"status\":\"error\",\"message\":\"Checkpoint failed: " << e.what() << "\"}";
+        res.set_body(ss.str());
     }
 
     return res;
-}
-
-HttpResponse Router::handle_static(std::string_view path) const {
-    const std::string resolved_path = (path == "/") ? "/index.html" : std::string(path);
-    auto static_res = file_handler_.serve(resolved_path);
-    if (static_res.has_value()) {
-        apply_cors_headers(*static_res);
-        return std::move(*static_res);
-    }
-    return handle_not_found();
 }
 
 HttpResponse Router::handle_not_found() const {
     HttpResponse res;
     res.set_status(404, "Not Found");
-    res.set_header("Content-Type", "application/json");
+    res.set_header("Content-Type", "text/html");
     apply_cors_headers(res);
-    res.set_body("{\"status\":\"error\",\"message\":\"404 Endpoint Not Found\"}");
-    return res;
-}
-
-HttpResponse Router::handle_method_not_allowed() const {
-    HttpResponse res;
-    res.set_status(405, "Method Not Allowed");
-    res.set_header("Content-Type", "application/json");
-    apply_cors_headers(res);
-    res.set_body("{\"status\":\"error\",\"message\":\"405 HTTP Method Not Allowed\"}");
+    res.set_body("<h1>404 Not Found - Nexus Vector Server</h1>");
     return res;
 }
 
 HttpResponse Router::route(const HttpRequest& req) const {
-    const HttpMethod method = resolve_method(req.method);
-    if (method == HttpMethod::Options) {
+    if (req.method == "OPTIONS") {
         return handle_options();
     }
 
-    switch (resolve_endpoint(req.path)) {
-        case RouteEndpoint::ApiStatus:
-            return (method == HttpMethod::Get) ? handle_api_status() : handle_method_not_allowed();
+    if (req.path == "/api/status" && req.method == "GET") {
+        return handle_api_status();
+    }
 
-        case RouteEndpoint::ApiSearch:
-            return (method == HttpMethod::Post) ? handle_api_search(req) : handle_method_not_allowed();
+    if (req.path == "/api/concepts" && req.method == "GET") {
+        return handle_api_concepts();
+    }
 
-        case RouteEndpoint::ApiInsert:
-            return (method == HttpMethod::Post) ? handle_api_insert(req) : handle_method_not_allowed();
+    if (req.path == "/api/search" && req.method == "POST") {
+        return handle_api_search(req);
+    }
 
-        case RouteEndpoint::ApiCheckpoint:
-            return (method == HttpMethod::Post) ? handle_api_checkpoint() : handle_method_not_allowed();
+    if (req.path == "/api/insert" && req.method == "POST") {
+        return handle_api_insert(req);
+    }
 
-        case RouteEndpoint::StaticAsset:
-            return (method == HttpMethod::Get) ? handle_static(req.path) : handle_method_not_allowed();
+    if (req.path == "/api/checkpoint" && req.method == "POST") {
+        return handle_api_checkpoint(req);
+    }
+
+    std::string path_to_serve = (req.path == "/") ? "/index.html" : req.path;
+    auto static_res = file_handler_.serve(path_to_serve);
+    if (static_res.has_value()) {
+        apply_cors_headers(*static_res);
+        return std::move(*static_res);
     }
 
     return handle_not_found();
