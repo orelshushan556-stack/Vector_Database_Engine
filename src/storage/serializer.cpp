@@ -1,4 +1,7 @@
 ﻿#include "engine/storage/serializer.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -18,6 +21,7 @@
 #include <span>
 #include <cerrno>
 #include <stdexcept>
+#include <string>
 #include <system_error>
 
 namespace engine {
@@ -81,9 +85,106 @@ namespace {
         out.write(reinterpret_cast<const char*>(&val), sizeof(T));
     }
 
+    // Upper bounds for header fields read from an untrusted snapshot.
+    constexpr uint64_t MAX_SNAPSHOT_DIM = 1u << 16;
+    constexpr uint64_t MAX_SNAPSHOT_M = 1024;
+    constexpr uint64_t MAX_SNAPSHOT_M0 = 4096;
+    constexpr int MAX_SNAPSHOT_LEVEL = 128;
+
+    [[noreturn]] void corrupt(const std::string& why) {
+        throw std::runtime_error("Corrupted snapshot: " + why);
+    }
+
     template <typename T>
     void read_pod(std::istream& in, T& val) {
         in.read(reinterpret_cast<char*>(&val), sizeof(T));
+        if (!in) {
+            corrupt("unexpected end of data");
+        }
+    }
+
+    // Reads exactly n elements. The container grows in bounded steps as data actually
+    // arrives, so a corrupted length field cannot trigger a huge up-front allocation.
+    template <typename Vec>
+    void read_exact(std::istream& in, Vec& vec, uint64_t n) {
+        using T = typename Vec::value_type;
+        constexpr uint64_t kChunkElems = (1u << 20) / sizeof(T);
+
+        vec.clear();
+        uint64_t remaining = n;
+        while (remaining > 0) {
+            const auto step = static_cast<std::size_t>(std::min(remaining, kChunkElems));
+            const std::size_t old_size = vec.size();
+            vec.resize(old_size + step);
+            in.read(reinterpret_cast<char*>(vec.data() + old_size),
+                    static_cast<std::streamsize>(step * sizeof(T)));
+            if (!in) {
+                corrupt("unexpected end of data");
+            }
+            remaining -= step;
+        }
+    }
+
+    // Structural checks that make graph traversal safe: every adjacency block must fit
+    // its buffer, every degree must respect the layer capacity, and every neighbor id
+    // must refer to an existing node.
+    template <typename Levels, typename Layer0, typename Upper>
+    void validate_graph(const Levels& levels, const Layer0& layer0, const Upper& upper,
+                        std::size_t n, std::size_t m, std::size_t m0) {
+        if (levels.size() != n || upper.size() != n) {
+            corrupt("per-node arrays have inconsistent lengths");
+        }
+        if (layer0.size() != n * (m0 + 1)) {
+            corrupt("layer-0 adjacency has the wrong size");
+        }
+        for (std::size_t i = 0; i < n; ++i) {
+            const int level = levels[i];
+            if (level < 0 || level > MAX_SNAPSHOT_LEVEL) {
+                corrupt("node level out of range");
+            }
+            if (upper[i].size() != static_cast<std::size_t>(level) * (m + 1)) {
+                corrupt("upper-layer adjacency has the wrong size");
+            }
+
+            const std::size_t base0 = i * (m0 + 1);
+            const std::size_t degree0 = layer0[base0];
+            if (degree0 > m0) {
+                corrupt("layer-0 degree exceeds capacity");
+            }
+            for (std::size_t j = 0; j < degree0; ++j) {
+                if (layer0[base0 + 1 + j] >= n) {
+                    corrupt("layer-0 neighbor id out of range");
+                }
+            }
+
+            for (int l = 0; l < level; ++l) {
+                const std::size_t base = static_cast<std::size_t>(l) * (m + 1);
+                const std::size_t degree = upper[i][base];
+                if (degree > m) {
+                    corrupt("upper-layer degree exceeds capacity");
+                }
+                for (std::size_t j = 0; j < degree; ++j) {
+                    const std::size_t neighbor = upper[i][base + 1 + j];
+                    if (neighbor >= n) {
+                        corrupt("upper-layer neighbor id out of range");
+                    }
+                    // Traversal reads the neighbor's adjacency on this layer, so the
+                    // neighbor must actually own that layer.
+                    if (levels[neighbor] < l + 1) {
+                        corrupt("upper-layer neighbor does not exist on that layer");
+                    }
+                }
+            }
+        }
+    }
+
+    void validate_hnsw_params(uint64_t dimension, uint64_t m, uint64_t m0) {
+        if (dimension == 0 || dimension > MAX_SNAPSHOT_DIM) {
+            corrupt("dimension out of range");
+        }
+        if (m < 2 || m > MAX_SNAPSHOT_M || m0 < m || m0 > MAX_SNAPSHOT_M0) {
+            corrupt("graph parameters out of range");
+        }
     }
 
     template <typename Vec>
@@ -100,11 +201,7 @@ namespace {
     void read_vec(std::istream& in, Vec& vec) {
         uint64_t sz = 0;
         read_pod(in, sz);
-        vec.resize(static_cast<std::size_t>(sz));
-        if (sz > 0) {
-            std::span s(vec.data(), vec.size());
-            in.read(reinterpret_cast<char*>(s.data()), s.size_bytes());
-        }
+        read_exact(in, vec, sz);
     }
 }
 
@@ -235,16 +332,17 @@ FlatIndex Serializer::deserialize(std::istream& in) {
         throw std::runtime_error("Invalid metric type in header");
     }
 
-    std::vector<VectorId> ids(header.count);
-    AlignedVector<float> storage(header.count * header.dimension);
-
-    if (header.count > 0) {
-        in.read(reinterpret_cast<char*>(ids.data()), ids.size() * sizeof(ids[0]));
-        in.read(reinterpret_cast<char*>(storage.data()), storage.size() * sizeof(storage[0]));
-        if (!in) {
-            throw std::runtime_error("Failed to read vector data from stream");
-        }
+    if (header.dimension == 0 || header.dimension > MAX_SNAPSHOT_DIM) {
+        throw std::runtime_error("Corrupted snapshot: dimension out of range");
     }
+    if (header.count > (UINT64_MAX / sizeof(float)) / header.dimension) {
+        throw std::runtime_error("Corrupted snapshot: vector count out of range");
+    }
+
+    std::vector<VectorId> ids;
+    AlignedVector<float> storage;
+    read_exact(in, ids, header.count);
+    read_exact(in, storage, header.count * header.dimension);
 
     FlatIndex index(header.dimension, static_cast<MetricType>(header.metric));
     index.populate(std::move(ids), std::move(storage));
@@ -327,6 +425,8 @@ HNSWIndex Serializer::deserialize_hnsw(std::istream& in) {
         throw std::runtime_error("Invalid metric type in HNSW header");
     }
 
+    validate_hnsw_params(header.dimension, header.m, header.max_m0);
+
     HNSWIndex index(
         static_cast<std::size_t>(header.dimension),
         static_cast<MetricType>(header.metric),
@@ -347,13 +447,26 @@ HNSWIndex Serializer::deserialize_hnsw(std::istream& in) {
 
     uint64_t upper_sz = 0;
     read_pod(in, upper_sz);
+    if (upper_sz != index.ids_.size()) {
+        corrupt("upper-layer table length does not match node count");
+    }
     index.upper_graph_.resize(static_cast<std::size_t>(upper_sz));
     for (auto& inner : index.upper_graph_) {
         read_vec(in, inner);
     }
 
-    if (!in) {
-        throw std::runtime_error("Failed to read HNSW graph data from stream");
+    const std::size_t n = index.ids_.size();
+    if (index.storage_.size() / header.dimension != n || index.storage_.size() % header.dimension != 0) {
+        corrupt("vector storage does not match node count");
+    }
+    validate_graph(index.levels_, index.layer0_graph_, index.upper_graph_, n, index.m_, index.max_m0_);
+    if (n == 0) {
+        if (index.enter_point_ != -1 || index.max_level_ != -1) {
+            corrupt("empty index has an entry point");
+        }
+    } else if (index.enter_point_ < 0 || static_cast<std::size_t>(index.enter_point_) >= n ||
+               index.max_level_ != index.levels_[static_cast<std::size_t>(index.enter_point_)]) {
+        corrupt("entry point is inconsistent with the graph");
     }
 
     return index;
@@ -445,6 +558,14 @@ HNSWIndexSQ8 Serializer::deserialize_hnsw_sq8(std::istream& in) {
     uint8_t trained = 0;
     read_pod(in, trained);
 
+    validate_hnsw_params(header.dimension, header.m, header.max_m0);
+    if (header.max_m < 2 || header.max_m > MAX_SNAPSHOT_M) {
+        corrupt("graph parameters out of range");
+    }
+    if (!std::isfinite(header.re_rank_factor) || header.re_rank_factor <= 0.0f) {
+        corrupt("re-rank factor out of range");
+    }
+
     ScalarQuantizer quantizer(static_cast<std::size_t>(header.dimension));
     quantizer.is_trained_ = (trained != 0);
     read_vec(in, quantizer.min_values_);
@@ -452,6 +573,15 @@ HNSWIndexSQ8 Serializer::deserialize_hnsw_sq8(std::istream& in) {
 
     if (!quantizer.is_trained_) {
         throw std::runtime_error("Corrupted HNSWIndexSQ8 stream: Quantizer is not marked as trained");
+    }
+    if (quantizer.min_values_.size() != header.dimension || quantizer.scale_values_.size() != header.dimension) {
+        corrupt("quantizer parameters do not match the dimension");
+    }
+    for (std::size_t d = 0; d < quantizer.min_values_.size(); ++d) {
+        if (!std::isfinite(quantizer.min_values_[d]) || !std::isfinite(quantizer.scale_values_[d]) ||
+            quantizer.scale_values_[d] <= 0.0f) {
+            corrupt("quantizer parameters are not usable");
+        }
     }
 
     HNSWIndexSQ8 index(
@@ -479,13 +609,28 @@ HNSWIndexSQ8 Serializer::deserialize_hnsw_sq8(std::istream& in) {
 
     uint64_t upper_sz = 0;
     read_pod(in, upper_sz);
+    if (upper_sz != index.ids_.size()) {
+        corrupt("upper-layer table length does not match node count");
+    }
     index.upper_graph_.resize(static_cast<std::size_t>(upper_sz));
     for (auto& inner : index.upper_graph_) {
         read_vec(in, inner);
     }
 
-    if (!in) {
-        throw std::runtime_error("Failed to read HNSWIndexSQ8 graph data from stream");
+    const std::size_t n = index.ids_.size();
+    if (index.count_ != n || index.quantized_storage_.size() / header.dimension != n ||
+        index.quantized_storage_.size() % header.dimension != 0 ||
+        index.raw_storage_.size() != index.quantized_storage_.size()) {
+        corrupt("vector storage does not match node count");
+    }
+    validate_graph(index.levels_, index.layer0_graph_, index.upper_graph_, n, index.max_m_, index.max_m0_);
+    if (n == 0) {
+        if (index.max_level_ != -1) {
+            corrupt("empty index has an entry point");
+        }
+    } else if (index.enter_point_ >= n ||
+               index.max_level_ != index.levels_[index.enter_point_]) {
+        corrupt("entry point is inconsistent with the graph");
     }
 
     return index;

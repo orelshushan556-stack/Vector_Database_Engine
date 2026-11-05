@@ -1,10 +1,24 @@
 ﻿#include "engine/core/vector_engine.hpp"
 #include "engine/storage/serializer.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace engine {
+
+namespace {
+
+// NaN or infinite components make distances unordered and would be persisted to the WAL.
+void require_finite(std::span<const float> v, const char* what) {
+    if (!std::all_of(v.begin(), v.end(), [](float x) { return std::isfinite(x); })) {
+        throw std::invalid_argument(std::string(what) + " contains a non-finite value");
+    }
+}
+
+} // namespace
 
 VectorEngine::VectorEngine(std::unique_ptr<IndexBase> index, std::string wal_path)
     : index_(std::move(index)), wal_(std::move(wal_path)) {
@@ -21,6 +35,7 @@ void VectorEngine::insert(uint64_t id, std::span<const float> vector) {
     if (vector.size() != index_->dimension()) {
         throw std::invalid_argument("Vector dimension does not match engine dimension");
     }
+    require_finite(vector, "Vector");
 
     // Hold the WAL mutex across both steps so a checkpoint cannot snapshot and
     // truncate the WAL between the append and the in-memory add.
@@ -35,6 +50,7 @@ std::vector<SearchResult> VectorEngine::search(std::span<const float> query, std
     if (query.size() != index_->dimension()) {
         throw std::invalid_argument("Query dimension does not match engine dimension");
     }
+    require_finite(query, "Query");
 
     std::shared_lock<std::shared_mutex> lock(index_rw_lock_);
     return index_->search(query, k);

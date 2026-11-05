@@ -19,11 +19,14 @@ HttpRequest HttpRequestParser::parse(const std::string& raw_request) {
         }
 
         std::string key = line.substr(0, pos);
-        std::string value = line.substr(pos + 2);
+        // Header values may be empty ("X:") or lack the conventional space after the colon.
+        std::string value = line.substr(pos + 1);
 
-        if (!value.empty() && value.back() == '\r') {
+        while (!value.empty() && (value.back() == '\r' || value.back() == ' ' || value.back() == '\t')) {
             value.pop_back();
         }
+        const size_t first = value.find_first_not_of(" \t");
+        value.erase(0, first == std::string::npos ? value.size() : first);
 
         req.headers[key] = value;
     }

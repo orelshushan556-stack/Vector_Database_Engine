@@ -2,6 +2,7 @@
 
 #include <immintrin.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <span>
 #include <stdexcept>
@@ -16,6 +17,10 @@ namespace engine {
     void ScalarQuantizer::train(std::span<const float> training_data) {
         if (dimension_ == 0 || training_data.empty() || (training_data.size() % dimension_ != 0)) {
             throw std::invalid_argument("Invalid training data or dimension");
+        }
+
+        if (!std::all_of(training_data.begin(), training_data.end(), [](float x) { return std::isfinite(x); })) {
+            throw std::invalid_argument("Training data contains a non-finite value");
         }
 
         min_values_.resize(dimension_);
@@ -67,7 +72,9 @@ namespace engine {
         }
         for (std::size_t d = 0; d < dimension_; ++d) {
             const float scaled = ((src[d] - min_values_[d]) / scale_values_[d]) + 0.5f;
-            const float clamped = std::clamp(scaled, 0.0f, 255.0f);
+            // Written so that NaN falls into the second branch: converting NaN to an integer
+            // type is undefined behavior.
+            const float clamped = (scaled > 0.0f) ? std::min(scaled, 255.0f) : 0.0f;
             dst[d] = static_cast<uint8_t>(clamped);
         }
     }

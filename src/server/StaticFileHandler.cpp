@@ -29,7 +29,10 @@ std::optional<HttpResponse> StaticFileHandler::serve(std::string_view raw_path) 
         return std::nullopt;
     }
 
-    std::streamsize size = file.tellg();
+    const std::streamsize size = file.tellg();
+    if (size < 0) {
+        return std::nullopt;
+    }
     file.seekg(0, std::ios::beg);
 
     std::string content;

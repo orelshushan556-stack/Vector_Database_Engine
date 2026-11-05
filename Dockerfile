@@ -3,9 +3,11 @@
 #
 # Stages:
 #   web-build     React / Three.js dashboard bundle
+#   toolchain     Compiler, CMake, Ninja and the sources
 #   engine-build  Release build of every target (library, server, tests, benchmark)
 #   test          Runs the full ctest suite; the image build fails if any test fails
 #   bench         SIFT benchmark harness (run with the dataset mounted, see below)
+#   asan / tsan   Sanitizer builds that run the full test suite (see Stage 6)
 #   runtime       Minimal image containing nexus_server and the dashboard (default)
 #
 # The default target depends on the test stage, so
@@ -33,10 +35,10 @@ COPY web/ ./
 RUN npm run build
 
 # ------------------------------------------------------------------------------
-# Stage 2: C++ engine build (Release; -mavx2 -mfma -O3 are set in CMakeLists.txt)
+# Stage 2: C++ toolchain and sources
 # GoogleTest is fetched by CMake FetchContent, which requires git and network access.
 # ------------------------------------------------------------------------------
-FROM ubuntu:24.04 AS engine-build
+FROM ubuntu:24.04 AS toolchain
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
@@ -52,18 +54,22 @@ COPY examples/ examples/
 COPY benchmarks/ benchmarks/
 COPY tests/ tests/
 
+# ------------------------------------------------------------------------------
+# Stage 3: Release build of every target (-mavx2 -mfma -O3 are set in CMakeLists.txt)
+# ------------------------------------------------------------------------------
+FROM toolchain AS engine-build
 RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel
 
 # ------------------------------------------------------------------------------
-# Stage 3: test suite
+# Stage 4: test suite
 # ------------------------------------------------------------------------------
 FROM engine-build AS test
 RUN ctest --test-dir build --output-on-failure \
     && touch /tmp/tests-passed
 
 # ------------------------------------------------------------------------------
-# Stage 4: SIFT benchmark harness
+# Stage 5: SIFT benchmark harness
 # Expects data/siftsmall/{siftsmall_base.fvecs, siftsmall_query.fvecs,
 # siftsmall_groundtruth.ivecs} under /src/data (mount it at run time).
 # ------------------------------------------------------------------------------
@@ -72,7 +78,34 @@ WORKDIR /src
 ENTRYPOINT ["/src/build/bench_sift"]
 
 # ------------------------------------------------------------------------------
-# Stage 5: minimal runtime
+# Stage 6: sanitizer builds (not part of the default chain)
+#   docker build --target asan .   AddressSanitizer + UndefinedBehaviorSanitizer
+#   docker build --target tsan .   ThreadSanitizer
+# Each stage configures with the matching ENABLE_* option, builds, and runs ctest; the
+# build fails if any test fails or any sanitizer reports an error.
+# ------------------------------------------------------------------------------
+FROM toolchain AS asan
+ENV ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1:halt_on_error=1 \
+    UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
+RUN cmake -S . -B build_asan -G Ninja -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=Debug \
+    && cmake --build build_asan --parallel \
+    && ctest --test-dir build_asan --output-on-failure
+
+FROM toolchain AS tsan
+ENV TSAN_OPTIONS=halt_on_error=1:second_deadlock_stack=1
+# ThreadSanitizer cannot start on kernels whose address-space randomization is wider than
+# its fixed shadow-memory layout ("unexpected memory mapping"), so this stage only builds.
+# Run the suite with ASLR disabled, which needs the personality() syscall:
+#   docker build --target tsan -t vector-engine:tsan .
+#   docker run --rm --security-opt seccomp=unconfined vector-engine:tsan
+# Test discovery is deferred to ctest time for the same reason.
+RUN cmake -S . -B build_tsan -G Ninja -DENABLE_TSAN=ON -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST \
+    && cmake --build build_tsan --parallel
+CMD ["setarch", "x86_64", "-R", "ctest", "--test-dir", "build_tsan", "--output-on-failure"]
+
+# ------------------------------------------------------------------------------
+# Stage 7: minimal runtime
 # ------------------------------------------------------------------------------
 FROM ubuntu:24.04 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive

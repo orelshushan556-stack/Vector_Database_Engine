@@ -28,6 +28,12 @@ HNSWIndexSQ8::HNSWIndexSQ8(std::size_t dimension,
       ef_search_(ef_search),
       re_rank_factor_(re_rank_factor),
       mult_(1.0 / std::log(static_cast<double>(m))) {
+    if (dimension_ == 0) {
+        throw std::invalid_argument("HNSWIndexSQ8 dimension must be positive.");
+    }
+    if (m_ < 2) {
+        throw std::invalid_argument("HNSWIndexSQ8 parameter M must be at least 2.");
+    }
     if (!quantizer_.is_trained()) {
         throw std::runtime_error("ScalarQuantizer must be trained before creating HNSWIndexSQ8.");
     }
@@ -267,7 +273,15 @@ std::vector<SearchResult> HNSWIndexSQ8::search(VectorView query, std::size_t k) 
         [&](uint32_t node, int lc) { return get_links(node, lc); },
         [&](uint32_t node) { return compute_quantized_distance(query, node); });
 
-    std::size_t num_candidates = static_cast<std::size_t>(static_cast<float>(std::max(ef_search_, k)) * re_rank_factor_);
+    // The factor is caller-controlled (set_re_rank_factor); converting a NaN, negative or
+    // huge float to an integer is undefined behavior, so compute in double and clamp to
+    // [k, node count].
+    const double wanted = static_cast<double>(std::max(ef_search_, k)) * static_cast<double>(re_rank_factor_);
+    std::size_t num_candidates = k;
+    if (wanted > static_cast<double>(k)) {
+        num_candidates = wanted >= static_cast<double>(count_) ? count_ : static_cast<std::size_t>(wanted);
+    }
+    num_candidates = std::max(num_candidates, k);
     auto candidates = search_layer(query, {curr_ep}, num_candidates, 0);
 
     std::vector<SearchResult> re_ranked;

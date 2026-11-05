@@ -68,6 +68,10 @@ MaxHeap search_layer_impl(std::span<const uint32_t> enter_points,
                           LinksFn&& links,
                           DistFn&& dist,
                           PrefetchFn&& prefetch) {
+    // The result set can never hold more than node_count entries; clamping keeps a huge
+    // caller-supplied ef from sizing the buffers below.
+    ef = std::min(ef, node_count);
+
     std::vector<DistPair> top_container;
     top_container.reserve(ef + 1);
     MaxHeap top(std::less<DistPair>{}, std::move(top_container));

@@ -3,7 +3,9 @@
 #include "engine/index/index_base.hpp"
 #include "ConceptRegistry.hpp"
 
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <cstdlib>
 #include <iomanip>
 #include <sstream>
@@ -11,6 +13,10 @@
 #include <vector>
 
 namespace server::json {
+
+// Upper bound on the client-supplied result count; larger values would size internal
+// candidate buffers from untrusted input.
+inline constexpr size_t MAX_SEARCH_K = 10000;
 
 inline bool parse_vector_payload(const std::string& body, std::vector<float>& out_vec) {
     out_vec.clear();
@@ -30,6 +36,12 @@ inline bool parse_vector_payload(const std::string& body, std::vector<float>& ou
         char* next_p = nullptr;
         float val = std::strtof(p, &next_p);
         if (next_p == p) break;
+        // strtof accepts "nan", "inf" and overflowing literals; a non-finite component
+        // would corrupt distance ordering and be persisted to the WAL.
+        if (!std::isfinite(val)) {
+            out_vec.clear();
+            return false;
+        }
         out_vec.push_back(val);
         p = next_p;
     }
@@ -73,7 +85,10 @@ inline std::string build_search_response(const std::vector<engine::SearchResult>
 
     for (size_t i = 0; i < results.size(); ++i) {
         ss << "{\"id\":" << results[i].id << ",\"distance\":" << results[i].distance;
-        const auto* meta = ConceptRegistry::instance().get_concept(static_cast<uint32_t>(results[i].id));
+        // Ids above 32 bits must not wrap into the concept id range.
+        const auto* meta = results[i].id <= std::numeric_limits<uint32_t>::max()
+            ? ConceptRegistry::instance().get_concept(static_cast<uint32_t>(results[i].id))
+            : nullptr;
         if (meta) {
             ss << ",\"label\":\"" << meta->label << "\""
                << ",\"branch\":" << meta->branch

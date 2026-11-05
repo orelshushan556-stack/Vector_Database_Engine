@@ -150,7 +150,7 @@ Replay (`WalManager::replay`, invoked from the `VectorEngine` constructor) reads
 
 Torn-tail recovery: a crash during an append leaves an incomplete record at the physical end of the log. Replay stops at the last verified record and truncates the file to that byte offset (`ftruncate`, or `_chsize_s` on Windows) so that subsequent appends do not follow garbage. A record that is complete but fails validation is treated as hard corruption and aborts replay; the server does not catch the exception during startup, so the process terminates and the log must be repaired or removed by an operator. A bad dimension field is always treated as hard corruption, even at the tail of the log.
 
-Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. After the rename, the parent directory entry is made durable: on POSIX the directory is opened (`O_RDONLY | O_DIRECTORY`) and `fsync`ed, so the new name survives sudden power loss; on Windows, where directories cannot be flushed, the replacement uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, which returns only after the move has been written through. Both branches are built and exercised: the Windows branch by the native MinGW build, and the POSIX branch by the Linux (Ubuntu 24.04, GCC) build inside the `test` stage of the `Dockerfile`, which runs the checkpoint tests. Their power-loss behavior itself has not been tested. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
+Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. After the rename, the parent directory entry is made durable: on POSIX the directory is opened (`O_RDONLY | O_DIRECTORY`) and `fsync`ed, so the new name survives sudden power loss; on Windows, where directories cannot be flushed, the replacement uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, which returns only after the move has been written through. Both branches are built and exercised: the Windows branch by the native MinGW build, and the POSIX branch by the Linux (Ubuntu 24.04, GCC) build inside the `test` stage of the `Dockerfile`, which runs the checkpoint tests. Their power-loss behavior itself has not been tested. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index. Loading treats the file as untrusted: vectors are read in bounded chunks so a corrupted length field cannot trigger a large allocation, truncation is an error at any offset, header parameters are range-checked, and the graph is validated before use (array lengths, adjacency degrees, neighbor ids, and that every neighbor listed on an upper layer owns that layer). A snapshot that fails validation raises `std::runtime_error`; `nexus_server` then reports the failure and starts from the built-in index.
 
 ### 2.5 Thread pool and concurrency model
 
@@ -162,6 +162,9 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 - `VectorEngine` uses two locks. `index_rw_lock_` (`std::shared_mutex`) allows concurrent `search` calls and gives `insert` exclusive access while it mutates the index. `wal_mutex_` serializes WAL appends. Insert acquires the WAL mutex, appends and syncs, then takes the exclusive index lock while still holding the WAL mutex (lock order: `wal_mutex_` then `index_rw_lock_`, identical in `create_checkpoint`). The fsync happens before the index lock is taken, so concurrent searches are not blocked by disk I/O, but inserts are fully serialized with one another and with checkpoints.
 - Because both steps of an insert run under the WAL mutex, log order and index application order are identical, and replay reconstructs the same insertion sequence (node levels are re-randomized, so the graph topology differs).
 - Failure isolation: `WorkerThreadPool::worker_loop` catches exceptions escaping a task and logs them, so a failing request cannot terminate a worker. `Router` maps `std::invalid_argument` to HTTP 400 and other engine exceptions to HTTP 500, with a catch-all around routing.
+- Connection handling: the client socket is owned by an RAII guard, so every exit path (including an exception while parsing) closes it. Receives time out after 10 seconds, so a stalled client cannot hold a worker indefinitely. Responses are written with a send loop (`send` may transfer fewer bytes than requested), and `MSG_NOSIGNAL` is set on Linux so a client that disconnects mid-response cannot terminate the process with `SIGPIPE`.
+- Shutdown: `is_running_` and the listening descriptor are `std::atomic`, because `stop()` may run on a different thread than `start()`. `stop()` calls `shutdown()` before closing the listening socket; on Linux `close()` alone does not wake a thread blocked in `accept()`.
+- Input validation at the HTTP boundary: JSON vectors containing `nan`, `inf`, or values that overflow `float` are rejected with HTTP 400 (`VectorEngine` enforces the same rule for library callers, before anything is written to the WAL); `k` above 10000 is rejected with HTTP 400; result ids above 32 bits are never mapped onto the 100 built-in concept labels.
 
 ## 3. Architecture
 
@@ -294,14 +297,16 @@ cd Vector_Database_Engine
 docker compose up --build -d
 ```
 
-The image is built in five stages (see the header of `Dockerfile`):
+The image is defined by the following stages (see the header of `Dockerfile`):
 
 | Stage          | Purpose                                                                                           |
 |----------------|---------------------------------------------------------------------------------------------------|
 | `web-build`    | Node 20; builds the dashboard into `public/`                                                      |
+| `toolchain`    | Ubuntu 24.04 with GCC, CMake, Ninja and git, plus the sources; base of every C++ stage             |
 | `engine-build` | Ubuntu 24.04 with GCC, CMake and Ninja; Release build of every target with `-mavx2 -mfma -O3`    |
 | `test`         | Runs `ctest --output-on-failure`; a failing test fails the image build                            |
 | `bench`        | Entry point is `bench_sift`; the dataset is mounted at run time                                   |
+| `asan`, `tsan` | Sanitizer builds that run the full test suite (section 6.2); not part of the default chain       |
 | `runtime`      | `nexus_server`, `public/` and `libstdc++` only; the default target                                |
 
 The `runtime` stage depends on the `test` stage, so `docker build -t vector-engine:latest .` compiles, runs the full test suite, and produces the runtime image only if every test passes. GoogleTest is fetched during the configure step, which requires network access. The host CPU must support AVX2 and FMA. The service listens on port 8080.
@@ -353,7 +358,18 @@ npm run dev       # Vite development server
 npm run build     # type-check and emit the bundle to ../public
 ```
 
-Sanitizers: configure with `-DENABLE_ASAN=ON` (AddressSanitizer and UndefinedBehaviorSanitizer) or `-DENABLE_TSAN=ON` (ThreadSanitizer); the two are mutually exclusive and require GCC or Clang on a platform whose toolchain ships the sanitizer runtimes. These options have not yet been exercised in this repository (the development toolchain, MinGW on Windows, does not provide them), so no sanitizer results are claimed.
+Sanitizers: configure with `-DENABLE_ASAN=ON` (AddressSanitizer and UndefinedBehaviorSanitizer) or `-DENABLE_TSAN=ON` (ThreadSanitizer); the two are mutually exclusive and require GCC or Clang with the sanitizer runtimes. The development toolchain on Windows (MinGW) does not provide them, so both are run in the Linux container:
+
+```bash
+# AddressSanitizer + UndefinedBehaviorSanitizer (leak detection enabled): runs ctest during the build
+docker build --target asan -t vector-engine:asan .
+
+# ThreadSanitizer: the build compiles; the run needs ASLR disabled (see below)
+docker build --target tsan -t vector-engine:tsan .
+docker run --rm --security-opt seccomp=unconfined vector-engine:tsan
+```
+
+Results on the current tree (Ubuntu 24.04, GCC, Debug): all 80 tests pass under AddressSanitizer with UndefinedBehaviorSanitizer and under ThreadSanitizer, with no reports of memory errors, leaks, undefined behavior, or data races. The suite includes concurrent reads and writes against `VectorEngine`, end-to-end HTTP tests with `start()` and `stop()` on different threads, and a randomized snapshot-corruption test. ThreadSanitizer aborts at startup with "unexpected memory mapping" on kernels whose address-space randomization is wider than its shadow-memory layout (observed on the Docker Desktop kernel); running the tests with ASLR disabled (`setarch -R`, which requires `--security-opt seccomp=unconfined`) avoids this. Sanitizer coverage is limited to what the tests exercise.
 
 ### 6.3 Dashboard
 

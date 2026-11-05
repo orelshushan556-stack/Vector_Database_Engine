@@ -3,6 +3,7 @@
 #include "WorkerThreadPool.hpp"
 #include "engine/core/vector_engine.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -23,8 +24,8 @@ public:
     HttpServer(const HttpServer&) = delete;
     HttpServer& operator=(const HttpServer&) = delete;
 
-    HttpServer(HttpServer&&) noexcept = default;
-    HttpServer& operator=(HttpServer&&) noexcept = default;
+    HttpServer(HttpServer&&) = delete;
+    HttpServer& operator=(HttpServer&&) = delete;
 
     void start();
     void stop();
@@ -32,8 +33,9 @@ public:
 private:
     uint16_t port_;
     std::shared_ptr<engine::VectorEngine> engine_;
-    socket_t server_fd_{static_cast<socket_t>(-1)};
-    bool is_running_{false};
+    // stop() may be called from a different thread than start(), so both are atomic.
+    std::atomic<socket_t> server_fd_{static_cast<socket_t>(-1)};
+    std::atomic<bool> is_running_{false};
     WorkerThreadPool thread_pool_;
 
     void setup_socket();

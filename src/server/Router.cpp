@@ -82,6 +82,12 @@ HttpResponse Router::handle_api_search(const HttpRequest& req) const {
         return res;
     }
 
+    if (k > server::json::MAX_SEARCH_K) {
+        res.set_status(400, "Bad Request");
+        res.set_body("{\"status\":\"error\",\"message\":\"'k' must be between 1 and 10000.\"}");
+        return res;
+    }
+
     if (query_vec.size() != engine_->dimension()) {
         res.set_status(422, "Unprocessable Entity");
         std::ostringstream ss;

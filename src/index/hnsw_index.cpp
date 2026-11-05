@@ -20,7 +20,15 @@ HNSWIndex::HNSWIndex(std::size_t dimension, MetricType metric, std::size_t m, st
       ef_construction_(ef_construction),
       ef_search_(ef_search),
       mult_(1.0 / std::log(static_cast<double>(m))),
-      rng_(std::random_device{}()) {}
+      rng_(std::random_device{}()) {
+    // m < 2 makes 1 / ln(m) infinite or negative, which breaks level generation.
+    if (dimension_ == 0) {
+        throw std::invalid_argument("HNSWIndex dimension must be positive.");
+    }
+    if (m_ < 2) {
+        throw std::invalid_argument("HNSWIndex parameter M must be at least 2.");
+    }
+}
 
 std::size_t HNSWIndex::size() const noexcept { return ids_.size(); }
 std::size_t HNSWIndex::dimension() const noexcept { return dimension_; }
