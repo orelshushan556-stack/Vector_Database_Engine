@@ -63,6 +63,8 @@ Parameters and defaults (both `HNSWIndex` and `HNSWIndexSQ8`):
 | `efSearch`       | 50      | Candidate list width at query time; runtime-adjustable via `set_ef_search` |
 | `re_rank_factor` | 2.0     | `HNSWIndexSQ8` only; see section 2.3                                 |
 
+Constructors reject a dimension of 0 and `M` below 2 with `std::invalid_argument` (`M` below 2 makes the level multiplier `1 / ln(M)` infinite or negative). `HNSWIndexSQ8` additionally requires a trained quantizer.
+
 Structure:
 
 - Node level is drawn as `floor(-ln(U) * (1 / ln(M)))` with `U` uniform in (0, 1]. The generator is a `std::mt19937` seeded from `std::random_device`, so graph structure is not deterministic across runs.
@@ -238,6 +240,7 @@ Measured results (AMD Ryzen AI 7 350, Windows 11, MinGW GCC 15.2 with `-O3 -mavx
 Interpretation and limitations:
 
 - Recall is stable across builds: the worst run of any HNSW configuration reached 0.986 (`HNSWIndex`) and 0.999 (`HNSWIndexSQ8`). Before the neighbor-selection change (section 2.2) the same harness produced run-to-run minima of 0.40 and 0.62.
+- Graph traversal versus sequential scan: the base set is 10,000 x 128 x 4 B, about 5 MB, which fits in the last-level cache. An exact scan then streams contiguous memory that the hardware prefetcher handles well (86.5 us P50), while HNSW performs dependent, random-access hops, so its advantage here is about 4x (21.4 us at 0.997 recall) rather than the orders of magnitude seen on corpora far larger than the cache. Scan cost grows linearly with the corpus and graph search roughly logarithmically, so the gap widens with scale; this was not measured here. The explanation of the cache behavior is an interpretation of these numbers, not a separate measurement.
 - `HNSWIndexSQ8` re-ranks the entire candidate pool collected on layer 0 (`max(efSearch, k) * re_rank_factor` candidates, all rescored with exact FP32 distances) before truncating to `k`; it does not truncate to `k` first. With a factor of 5.0 it therefore performs `5 * max(efSearch, k)` exact distance computations per query, and on this dataset it is slower than brute-force `FlatIndex`. Its benefit is the 1-byte code scan during traversal, which matters for memory bandwidth at larger scales, not for a 10,000-vector corpus that fits in cache. A smaller re-rank factor lowers latency at some cost in recall.
 - Scalar quantizer calibration was reviewed: `QuantizedFlatIndex` reaches 0.990 Recall@10 with plain per-dimension min/max bounds, so percentile clipping was not introduced.
 - The query set is 100 vectors, the figures are single-thread latency rather than server throughput, and they were produced on one machine; they are not comparable with figures from other hardware or datasets.
@@ -270,9 +273,11 @@ Error responses:
 
 | Status | Condition                                                                |
 |--------|--------------------------------------------------------------------------|
-| 400    | Body is not parseable as the expected search or insert JSON               |
+| 400    | Body is not parseable as the expected JSON; the vector contains `nan`, `inf` or an overflowing value; `k` is above 10000; or the engine rejects the input with `std::invalid_argument` |
 | 422    | Vector length differs from the engine dimension (message includes both)   |
-| 500    | `/api/checkpoint` failed (message includes the exception text)            |
+| 413    | Request body larger than 16 MiB (`MAX_BODY_SIZE`)                         |
+| 431    | Request headers larger than 16 KiB                                        |
+| 500    | Engine error during search or insert, or `/api/checkpoint` failed (checkpoint messages include the exception text) |
 | 503    | Engine not initialized                                                    |
 | 404    | Unknown path and no matching file under `public/`                         |
 
@@ -345,6 +350,8 @@ ninja -C build
 ./build/nexus_server          # run from a directory containing public/
 ```
 
+Build and test status of the current tree: 82 of 82 tests pass (GoogleTest through CTest); a clean rebuild produces zero warnings under `-Wall -Wextra -Wpedantic` (GCC, MinGW and Ubuntu 24.04); the suite also passes under AddressSanitizer with UndefinedBehaviorSanitizer and under ThreadSanitizer (section 6.2).
+
 Targets: `engine_core` (library), `nexus_server`, `vector_engine_app` (example), `bench_sift`. Unit tests live in `tests/` (GoogleTest, fetched at configure time by `FetchContent`) and are registered through CTest.
 
 The server resolves `public/`, `nexus.wal`, and `index.bin` relative to its working directory.
@@ -369,7 +376,7 @@ docker build --target tsan -t vector-engine:tsan .
 docker run --rm --security-opt seccomp=unconfined vector-engine:tsan
 ```
 
-Results on the current tree (Ubuntu 24.04, GCC, Debug): all 80 tests pass under AddressSanitizer with UndefinedBehaviorSanitizer and under ThreadSanitizer, with no reports of memory errors, leaks, undefined behavior, or data races. The suite includes concurrent reads and writes against `VectorEngine`, end-to-end HTTP tests with `start()` and `stop()` on different threads, and a randomized snapshot-corruption test. ThreadSanitizer aborts at startup with "unexpected memory mapping" on kernels whose address-space randomization is wider than its shadow-memory layout (observed on the Docker Desktop kernel); running the tests with ASLR disabled (`setarch -R`, which requires `--security-opt seccomp=unconfined`) avoids this. Sanitizer coverage is limited to what the tests exercise.
+Results on the current tree (Ubuntu 24.04, GCC, Debug): all 82 tests pass under AddressSanitizer with UndefinedBehaviorSanitizer and under ThreadSanitizer, with no reports of memory errors, leaks, undefined behavior, or data races. The suite includes concurrent reads and writes against `VectorEngine`, end-to-end HTTP tests with `start()` and `stop()` on different threads, and a randomized snapshot-corruption test. ThreadSanitizer aborts at startup with "unexpected memory mapping" on kernels whose address-space randomization is wider than its shadow-memory layout (observed on the Docker Desktop kernel); running the tests with ASLR disabled (`setarch -R`, which requires `--security-opt seccomp=unconfined`) avoids this. Sanitizer coverage is limited to what the tests exercise.
 
 ### 6.3 Dashboard
 
