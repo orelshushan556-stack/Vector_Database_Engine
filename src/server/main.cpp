@@ -1,14 +1,13 @@
-#include "HttpServer.hpp"
+﻿#include "HttpServer.hpp"
+#include "ConceptRegistry.hpp"
 #include "engine/core/vector_engine.hpp"
 #include "engine/index/hnsw_index_sq8.hpp"
 #include "engine/quantization/scalar_quantizer.hpp"
 #include "engine/storage/serializer.hpp"
 
-#include <algorithm>
 #include <filesystem>
 #include <iostream>
 #include <memory>
-#include <random>
 #include <vector>
 
 int main() {
@@ -18,8 +17,8 @@ int main() {
 
     std::unique_ptr<engine::IndexBase> index;
 
-    constexpr std::string_view default_index_path = "index.bin";
-    constexpr std::string_view wal_path = "nexus.wal";
+    const std::string default_index_path = "index.bin";
+    const std::string wal_path = "nexus.wal";
 
     if (std::filesystem::exists(default_index_path)) {
         try {
@@ -32,18 +31,19 @@ int main() {
     }
 
     if (!index) {
-        std::cout << "[*] Initializing demo HNSW-SQ8 index (dim=128, SIFT compatible)..." << std::endl;
-        constexpr size_t dim = 128;
-        constexpr size_t num_vectors = 1000;
+        std::cout << "[*] Initializing HNSW-SQ8 index with 100 Technical Architecture Concepts..." << std::endl;
+        const size_t dim = ConceptRegistry::DIMENSION;
 
-        std::mt19937 rng(42);
-        std::uniform_real_distribution<float> dist(0.0f, 1.0f);
-
-        std::vector<float> training_data(100 * dim);
-        std::ranges::generate(training_data, [&]() { return dist(rng); });
+        // אימון הקוונטייזר
+        std::vector<float> train_data;
+        train_data.reserve(ConceptRegistry::TOTAL_CONCEPTS * dim);
+        for (uint32_t id = 1; id <= ConceptRegistry::TOTAL_CONCEPTS; ++id) {
+            auto span = ConceptRegistry::instance().get_vector(id);
+            train_data.insert(train_data.end(), span.begin(), span.end());
+        }
 
         engine::ScalarQuantizer quantizer(dim);
-        quantizer.train(training_data);
+        quantizer.train(train_data);
 
         auto hnsw_sq8 = std::make_unique<engine::HNSWIndexSQ8>(
             dim,
@@ -53,18 +53,13 @@ int main() {
             200
         );
 
-        std::vector<float> vec(dim);
-        for (size_t i = 0; i < num_vectors; ++i) {
-            std::ranges::generate(vec, [&]() { return dist(rng); });
-            hnsw_sq8->add(static_cast<uint64_t>(i), vec);
-        }
-
+        ConceptRegistry::instance().populate_index(*hnsw_sq8);
         index = std::move(hnsw_sq8);
-        std::cout << "[+] Demo index ready with " << index->size() << " vectors." << std::endl;
+        std::cout << "[+] Ready: " << index->size() << " technical concepts indexed across 4 architecture branches." << std::endl;
     }
 
     std::cout << "[*] Initializing VectorEngine with WAL recovery: " << wal_path << " ..." << std::endl;
-    auto engine = std::make_shared<engine::VectorEngine>(std::move(index), std::string(wal_path));
+    auto engine = std::make_shared<engine::VectorEngine>(std::move(index), wal_path);
     std::cout << "[+] VectorEngine ready. Total live vectors: " << engine->size() << std::endl;
 
     HttpServer server(8080, engine, 4);
