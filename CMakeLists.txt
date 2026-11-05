@@ -11,6 +11,9 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic -mavx2 -mfma -O3)
 endif()
 
+# ==============================================================================
+# Engine Core Library
+# ==============================================================================
 add_library(engine_core
         src/core/vector_engine.cpp
         src/distance/metrics.cpp
@@ -35,7 +38,19 @@ target_link_libraries(vector_engine_app PRIVATE engine_core)
 add_executable(bench_sift benchmarks/bench_sift.cpp)
 target_link_libraries(bench_sift PRIVATE engine_core)
 
-file(GLOB SERVER_SOURCES "src/server/*.cpp")
+# ==============================================================================
+# Standalone Vector Database Network Service (nexus_server)
+# ==============================================================================
+set(SERVER_SOURCES
+        src/server/ConceptRegistry.cpp
+        src/server/HttpRequestParser.cpp
+        src/server/HttpResponse.cpp
+        src/server/HttpServer.cpp
+        src/server/Router.cpp
+        src/server/StaticFileHandler.cpp
+        src/server/WorkerThreadPool.cpp
+        src/server/main.cpp
+)
 
 add_executable(nexus_server ${SERVER_SOURCES})
 
