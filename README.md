@@ -148,7 +148,7 @@ Replay (`WalManager::replay`, invoked from the `VectorEngine` constructor) reads
 
 Torn-tail recovery: a crash during an append leaves an incomplete record at the physical end of the log. Replay stops at the last verified record and truncates the file to that byte offset (`ftruncate`, or `_chsize_s` on Windows) so that subsequent appends do not follow garbage. A record that is complete but fails validation is treated as hard corruption and aborts replay; the server does not catch the exception during startup, so the process terminates and the log must be repaired or removed by an operator. A bad dimension field is always treated as hard corruption, even at the tail of the log.
 
-Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. The parent directory is not synchronized after the rename, so durability of the rename itself across power loss depends on the filesystem. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
+Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. After the rename, the parent directory entry is made durable: on POSIX the directory is opened (`O_RDONLY | O_DIRECTORY`) and `fsync`ed, so the new name survives sudden power loss; on Windows, where directories cannot be flushed, the replacement uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, which returns only after the move has been written through. The POSIX directory-fsync branch has not been compiled or run in this repository's development environment (Windows with MinGW); only the Windows path has been exercised. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
 
 ### 2.5 Thread pool and concurrency model
 
@@ -156,7 +156,7 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 
 - `HttpServer` runs a blocking accept loop. Each accepted connection is enqueued as a task. `main` creates the server with 4 worker threads.
 - `WorkerThreadPool` is a fixed set of `std::thread` workers consuming a single `std::queue<std::function<void()>>` guarded by one `std::mutex` and a `std::condition_variable`. It is a plain FIFO pool; there is no work stealing and no per-thread queues. Destruction sets a stop flag, wakes all workers, and joins them after the queue drains.
-- Each connection is handled as one request/response exchange (read until `Content-Length` bytes are received, route, send, close). There is no keep-alive. Request bytes are read in 4096-byte chunks; request size is not capped.
+- Each connection is handled as one request/response exchange (read until `Content-Length` bytes are received, route, send, close). There is no keep-alive. Request bytes are read in 4096-byte chunks; request size is capped: bodies larger than `MAX_BODY_SIZE` (16 MiB) are rejected with HTTP 413 as soon as `Content-Length` is parsed (or as soon as received bytes exceed the cap), and header blocks over 16 KiB with HTTP 431, so memory use per connection is bounded.
 - `VectorEngine` uses two locks. `index_rw_lock_` (`std::shared_mutex`) allows concurrent `search` calls and gives `insert` exclusive access while it mutates the index. `wal_mutex_` serializes WAL appends. Insert acquires the WAL mutex, appends and syncs, then takes the exclusive index lock while still holding the WAL mutex (lock order: `wal_mutex_` then `index_rw_lock_`, identical in `create_checkpoint`). The fsync happens before the index lock is taken, so concurrent searches are not blocked by disk I/O, but inserts are fully serialized with one another and with checkpoints.
 - Because both steps of an insert run under the WAL mutex, log order and index application order are identical, and replay reconstructs the same insertion sequence (node levels are re-randomized, so the graph topology differs).
 - Failure isolation: `WorkerThreadPool::worker_loop` catches exceptions escaping a task and logs them, so a failing request cannot terminate a worker. `Router` maps `std::invalid_argument` to HTTP 400 and other engine exceptions to HTTP 500, with a catch-all around routing.
@@ -213,7 +213,28 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 
 ### 4.2 Benchmark harness
 
-`benchmarks/bench_sift.cpp` (target `bench_sift`) evaluates the SIFT-small dataset against ground truth and reports mean per-query latency in microseconds and recall@10 for `FlatIndex` (exact), `QuantizedFlat` (SQ8), `HNSW`, and `HNSW-SQ8` across a sweep of `efSearch` values. It reports means, not percentiles. This repository does not commit measured results; run the harness on the target hardware to obtain figures. It reads `data/siftsmall/siftsmall_base.fvecs`, `siftsmall_query.fvecs` and the ground-truth ivecs file relative to the working directory; `data/` is git-ignored.
+`benchmarks/bench_sift.cpp` (target `bench_sift`) evaluates the SIFT-small dataset (10,000 base vectors, 128 dimensions, 100 queries, k = 10) against the provided ground truth. For each configuration it runs one scoring pass for recall and then 20 timed passes over all queries, timing every query individually, and reports Recall@10, P50, P99, mean latency, and single-thread QPS (1 / mean latency). It reads `data/siftsmall/siftsmall_base.fvecs`, `siftsmall_query.fvecs` and the ground-truth ivecs file relative to the working directory; `data/` is git-ignored.
+
+Measured results (AMD Ryzen AI 7 350, Windows 11, MinGW GCC 15.2 with `-O3 -mavx2 -mfma`, single thread, HNSW M = 16, efConstruction = 200, SQ8 re-rank factor 5.0; median of 10 independent runs of the harness):
+
+| Configuration         | Recall@10 median (min - max) | P50 (us) | QPS (1 thread) |
+|-----------------------|------------------------------|----------|----------------|
+| `FlatIndex` (exact)   | 1.000 (1.000 - 1.000)        | 86.6     | 9,526          |
+| `QuantizedFlatIndex`  | 0.990 (0.990 - 0.990)        | 125.8    | 6,748          |
+| `HNSWIndex` ef = 32   | 0.925 (0.402 - 0.980)        | 21.6     | 38,225         |
+| `HNSWIndex` ef = 64   | 0.937 (0.419 - 0.994)        | 37.1     | 23,602         |
+| `HNSWIndex` ef = 100  | 0.939 (0.422 - 0.997)        | 53.1     | 16,823         |
+| `HNSWIndex` ef = 150  | 0.941 (0.430 - 0.998)        | 73.0     | 12,847         |
+| `HNSWIndexSQ8` ef = 32  | 0.986 (0.616 - 0.997)      | 91.3     | 9,453          |
+| `HNSWIndexSQ8` ef = 64  | 0.987 (0.620 - 0.998)      | 160.1    | 5,531          |
+| `HNSWIndexSQ8` ef = 100 | 0.988 (0.621 - 0.999)      | 238.9    | 3,733          |
+| `HNSWIndexSQ8` ef = 150 | 0.989 (0.621 - 1.000)      | 341.6    | 2,552          |
+
+Known limitations of these results:
+
+- Recall of both HNSW variants is highly variable between runs and does not improve with larger `efSearch`: the worst of 10 runs reached only 0.40 (HNSW) and 0.62 (HNSW-SQ8). Graph construction is seeded from `std::random_device`, so every run builds a different graph. A diagnostic on the layer-0 graph showed that between roughly 45% and 55% of nodes were not reachable from the entry point by following directed links in most builds, with hundreds of nodes having in-degree zero. The nearest-replacement link pruning (section 2.2), which can leave a newly inserted node without any incoming link, is the leading suspect; this has not been confirmed and is an open defect. The same behavior reproduces on the code from before the shared-graph refactor, so it is not a regression from it.
+- On this dataset `HNSWIndexSQ8` is slower than brute-force `FlatIndex`: with a re-rank factor of 5.0 it scores `5 * max(efSearch, k)` exact distances per query on top of the graph traversal, and at 10,000 vectors a full AVX2 scan is already cheap.
+- The query set is 100 vectors; the figures are single-thread latency, not server throughput.
 
 ### 4.3 Memory efficiency
 
@@ -304,6 +325,8 @@ npm ci
 npm run dev       # Vite development server
 npm run build     # type-check and emit the bundle to ../public
 ```
+
+Sanitizers: configure with `-DENABLE_ASAN=ON` (AddressSanitizer and UndefinedBehaviorSanitizer) or `-DENABLE_TSAN=ON` (ThreadSanitizer); the two are mutually exclusive and require GCC or Clang on a platform whose toolchain ships the sanitizer runtimes. These options have not yet been exercised in this repository (the development toolchain, MinGW on Windows, does not provide them), so no sanitizer results are claimed.
 
 ### 6.3 Dashboard
 

@@ -1,7 +1,9 @@
 ﻿#include <gtest/gtest.h>
 #include "engine/storage/wal_manager.hpp"
 #include <filesystem>
+#include <cstdint>
 #include <fstream>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -144,5 +146,69 @@ TEST_F(WalManagerBasicTest, ReplayTruncatesTornTail) {
         wal.replay([&](uint64_t id, std::span<const float>) { ids.push_back(id); });
         ASSERT_EQ(ids.size(), 2u);
         EXPECT_EQ(ids[1], 3u);
+    }
+}
+
+TEST_F(WalManagerBasicTest, CrashMidWriteRecoversAllCommittedRecordsAndAcceptsNewAppends) {
+    constexpr std::size_t kDim = 4;
+    constexpr std::size_t kRecords = 10;
+    constexpr std::size_t kRecordSize = 18 + kDim * sizeof(float);
+
+    auto make_vec = [](uint64_t id) {
+        return std::vector<float>{static_cast<float>(id), 1.0f, 2.0f, 3.0f};
+    };
+
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        for (uint64_t id = 0; id < kRecords; ++id) {
+            wal.append_insert(id, make_vec(id));
+        }
+    }
+    ASSERT_EQ(fs::file_size(test_wal_path), kRecords * kRecordSize);
+
+    // Simulate a crash in the middle of an append: the header and half of the
+    // vector payload reach the disk, the rest and the end marker do not.
+    {
+        std::ofstream out(test_wal_path, std::ios::binary | std::ios::app);
+        const uint8_t op = 0x01;
+        const uint32_t crc = 0xDEADBEEF;
+        const uint64_t id = 999;
+        const uint32_t dim = static_cast<uint32_t>(kDim);
+        const float partial[2] = {7.0f, 8.0f};
+        out.write(reinterpret_cast<const char*>(&op), sizeof(op));
+        out.write(reinterpret_cast<const char*>(&crc), sizeof(crc));
+        out.write(reinterpret_cast<const char*>(&id), sizeof(id));
+        out.write(reinterpret_cast<const char*>(&dim), sizeof(dim));
+        out.write(reinterpret_cast<const char*>(partial), sizeof(partial));
+    }
+    ASSERT_GT(fs::file_size(test_wal_path), kRecords * kRecordSize);
+
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        std::vector<uint64_t> ids;
+        ASSERT_NO_THROW(wal.replay([&](uint64_t id, std::span<const float> v) {
+            ASSERT_EQ(v.size(), kDim);
+            EXPECT_EQ(v[0], static_cast<float>(id));
+            ids.push_back(id);
+        }));
+
+        ASSERT_EQ(ids.size(), kRecords);
+        for (uint64_t i = 0; i < kRecords; ++i) {
+            EXPECT_EQ(ids[i], i);
+        }
+
+        // The torn tail must be gone and the file must end on a record boundary.
+        EXPECT_EQ(fs::file_size(test_wal_path), kRecords * kRecordSize);
+
+        wal.append_insert(1000, make_vec(1000));
+    }
+
+    {
+        engine::storage::WalManager wal(test_wal_path);
+        std::vector<uint64_t> ids;
+        ASSERT_NO_THROW(wal.replay([&](uint64_t id, std::span<const float>) { ids.push_back(id); }));
+        ASSERT_EQ(ids.size(), kRecords + 1);
+        EXPECT_EQ(ids.back(), 1000u);
+        EXPECT_EQ(fs::file_size(test_wal_path), (kRecords + 1) * kRecordSize);
     }
 }

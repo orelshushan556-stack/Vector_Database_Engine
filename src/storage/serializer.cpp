@@ -3,12 +3,22 @@
 #include <filesystem>
 #include <fstream>
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #include <io.h>
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #endif
 #include <span>
+#include <cerrno>
 #include <stdexcept>
+#include <system_error>
 
 namespace engine {
 
@@ -28,6 +38,38 @@ namespace {
         if (rc != 0) {
             throw std::runtime_error("fsync failed for snapshot: " + path.string());
         }
+    }
+
+    // Replace dst with src atomically and make the directory entry durable.
+    //  - POSIX: rename(2), then fsync on the parent directory descriptor.
+    //  - Windows: MoveFileExW with MOVEFILE_WRITE_THROUGH, which returns only after
+    //    the move has been flushed to disk (directories cannot be fsynced there).
+    void durable_replace(const std::filesystem::path& src, const std::filesystem::path& dst) {
+#if defined(_WIN32)
+        if (!MoveFileExW(src.c_str(), dst.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+            throw std::system_error(static_cast<int>(GetLastError()), std::system_category(),
+                                    "Failed to atomically replace snapshot: " + dst.string());
+        }
+#else
+        std::filesystem::rename(src, dst);
+
+        std::filesystem::path parent = dst.parent_path();
+        if (parent.empty()) {
+            parent = ".";
+        }
+        const int dir_fd = ::open(parent.c_str(), O_RDONLY | O_DIRECTORY);
+        if (dir_fd < 0) {
+            throw std::system_error(errno, std::generic_category(),
+                                    "Cannot open snapshot directory for fsync: " + parent.string());
+        }
+        const int rc = ::fsync(dir_fd);
+        const int saved_errno = errno;
+        ::close(dir_fd);
+        if (rc != 0) {
+            throw std::system_error(saved_errno, std::generic_category(),
+                                    "fsync failed for snapshot directory: " + parent.string());
+        }
+#endif
     }
 
     constexpr uint32_t MAGIC_FLAT     = 0x56454349; // "VECI"
@@ -86,7 +128,7 @@ void Serializer::save(const IndexBase& index, const std::filesystem::path& file_
         }
 
         fsync_file(tmp_path);
-        std::filesystem::rename(tmp_path, file_path);
+        durable_replace(tmp_path, file_path);
     } catch (...) {
         std::error_code ec;
         std::filesystem::remove(tmp_path, ec);

@@ -12,6 +12,29 @@ else()
 endif()
 
 # ==============================================================================
+# Sanitizers (GCC / Clang only; ASan and TSan are mutually exclusive)
+# ==============================================================================
+option(ENABLE_ASAN "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(ENABLE_TSAN "Build with ThreadSanitizer" OFF)
+
+if (ENABLE_ASAN AND ENABLE_TSAN)
+    message(FATAL_ERROR "ENABLE_ASAN and ENABLE_TSAN cannot be enabled together")
+endif()
+
+if (ENABLE_ASAN OR ENABLE_TSAN)
+    if (MSVC)
+        message(FATAL_ERROR "Sanitizer options require GCC or Clang")
+    endif()
+    if (ENABLE_ASAN)
+        set(NEXUS_SANITIZER_FLAGS -fsanitize=address,undefined -fno-omit-frame-pointer)
+    else()
+        set(NEXUS_SANITIZER_FLAGS -fsanitize=thread -fno-omit-frame-pointer)
+    endif()
+    add_compile_options(${NEXUS_SANITIZER_FLAGS})
+    add_link_options(${NEXUS_SANITIZER_FLAGS})
+endif()
+
+# ==============================================================================
 # Engine Core Library
 # ==============================================================================
 add_library(engine_core

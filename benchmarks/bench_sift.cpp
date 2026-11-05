@@ -1,4 +1,5 @@
-﻿#include <iostream>
+﻿#include <algorithm>
+#include <iostream>
 #include <vector>
 #include <fstream>
 #include <chrono>
@@ -109,111 +110,110 @@ int main() {
         return VectorView(query_data.data() + (q * dim), dim);
     };
 
-    // 1. FlatIndex Baseline
-    std::cout << "[*] Running FlatIndex (Exact L2)... " << std::flush;
+    constexpr std::size_t REPEATS = 20;
+
+    struct Measurement {
+        double recall;
+        double mean_us;
+        double p50_us;
+        double p99_us;
+    };
+
+    // Runs every query REPEATS times (after one warm-up pass), timing each query
+    // individually. Recall is computed from the final pass.
+    auto measure = [&](auto&& search_fn) {
+        double recall = 0.0;
+        for (std::size_t q = 0; q < query_count; ++q) {
+            recall += compute_recall(ground_truth[q], search_fn(get_query(q)), K);
+        }
+
+        std::vector<double> samples;
+        samples.reserve(query_count * REPEATS);
+        for (std::size_t r = 0; r < REPEATS; ++r) {
+            for (std::size_t q = 0; q < query_count; ++q) {
+                const auto s = std::chrono::steady_clock::now();
+                auto res = search_fn(get_query(q));
+                const auto e = std::chrono::steady_clock::now();
+                if (res.empty()) {
+                    throw std::runtime_error("benchmark query returned no results");
+                }
+                samples.push_back(std::chrono::duration<double, std::micro>(e - s).count());
+            }
+        }
+        std::sort(samples.begin(), samples.end());
+
+        double sum = 0.0;
+        for (double v : samples) sum += v;
+
+        Measurement m{};
+        m.recall = recall / static_cast<double>(query_count);
+        m.mean_us = sum / static_cast<double>(samples.size());
+        m.p50_us = samples[samples.size() / 2];
+        m.p99_us = samples[std::min(samples.size() - 1, static_cast<std::size_t>(static_cast<double>(samples.size()) * 0.99))];
+        return m;
+    };
+
+    std::cout << "========================================================================\n";
+    std::cout << std::left
+              << std::setw(22) << "Index Configuration"
+              << std::setw(11) << "Recall@10"
+              << std::setw(11) << "P50 (us)"
+              << std::setw(11) << "P99 (us)"
+              << std::setw(11) << "Mean (us)"
+              << std::setw(12) << "QPS (1 core)"
+              << "\n";
+    std::cout << "------------------------------------------------------------------------\n";
+
+    auto print_row = [](const std::string& name, const Measurement& m) {
+        std::cout << std::left << std::setw(22) << name
+                  << std::fixed << std::setprecision(4) << std::setw(11) << m.recall
+                  << std::setprecision(2)
+                  << std::setw(11) << m.p50_us
+                  << std::setw(11) << m.p99_us
+                  << std::setw(11) << m.mean_us
+                  << std::setprecision(0) << std::setw(12) << (1e6 / m.mean_us)
+                  << "\n";
+    };
+
     FlatIndex flat(dim, MetricType::L2);
     for (std::size_t i = 0; i < base_count; ++i) {
         flat.add(static_cast<VectorId>(i), VectorView(base_data.data() + (i * dim), dim));
     }
-    auto t0 = std::chrono::high_resolution_clock::now();
-    double flat_recall = 0.0;
-    for (std::size_t q = 0; q < query_count; ++q) {
-        auto res = flat.search(get_query(q), K);
-        flat_recall += compute_recall(ground_truth[q], res, K);
-    }
-    auto t1 = std::chrono::high_resolution_clock::now();
-    double flat_lat = std::chrono::duration<double, std::micro>(t1 - t0).count() / query_count;
-    std::cout << "Done (" << flat_lat << " us/query | Recall@10: " << (flat_recall / query_count) << ")\n";
+    print_row("FlatIndex (Exact)", measure([&](VectorView q) { return flat.search(q, K); }));
 
-    // 2. QuantizedFlatIndex
-    std::cout << "[*] Running QuantizedFlat (SQ8 ADC)... " << std::flush;
     QuantizedFlatIndex qflat(dim);
     qflat.train(base_data);
     for (std::size_t i = 0; i < base_count; ++i) {
         qflat.add(VectorView(base_data.data() + (i * dim), dim));
     }
-    t0 = std::chrono::high_resolution_clock::now();
-    double qflat_recall = 0.0;
-    for (std::size_t q = 0; q < query_count; ++q) {
-        auto res = qflat.search(get_query(q), K);
-        qflat_recall += compute_recall(ground_truth[q], res, K);
-    }
-    t1 = std::chrono::high_resolution_clock::now();
-    double qflat_lat = std::chrono::duration<double, std::micro>(t1 - t0).count() / query_count;
-    std::cout << "Done (" << qflat_lat << " us/query | Recall@10: " << (qflat_recall / query_count) << ")\n\n";
+    print_row("QuantizedFlat (SQ8)", measure([&](VectorView q) { return qflat.search(q, K); }));
 
-    // 3. HNSW Parameter Sweep (Pareto Curve)
-    std::cout << "[*] Building HNSW (M=16, ef_c=200)... " << std::flush;
+    const std::vector<std::size_t> ef_values = {32, 64, 100, 150};
+
     HNSWIndex hnsw(dim, MetricType::L2, 16, 200, 50);
     for (std::size_t i = 0; i < base_count; ++i) {
         hnsw.add(static_cast<VectorId>(i), VectorView(base_data.data() + (i * dim), dim));
     }
-    std::cout << "Done.\n";
+    for (auto ef : ef_values) {
+        hnsw.set_ef_search(ef);
+        print_row("HNSW (ef=" + std::to_string(ef) + ")",
+                  measure([&](VectorView q) { return hnsw.search(q, K); }));
+    }
 
-    // 4. HNSW-SQ8 Building
-    std::cout << "[*] Building HNSW-SQ8 (M=16, ef_c=200, Re-rank 2.0x)... " << std::flush;
     ScalarQuantizer quantizer(dim);
     quantizer.train(base_data);
     HNSWIndexSQ8 sq8(dim, MetricType::L2, quantizer, 16, 200, 50, 5.0f);
     for (std::size_t i = 0; i < base_count; ++i) {
         sq8.add(static_cast<VectorId>(i), VectorView(base_data.data() + (i * dim), dim));
     }
-    std::cout << "Done.\n\n";
-
-    // Print SIFT Benchmark Results
-    std::cout << "========================================================================\n";
-    std::cout << std::left 
-              << std::setw(20) << "Index Configuration"
-              << std::setw(15) << "Latency (us)"
-              << std::setw(18) << "QPS (Single-Core)"
-              << std::setw(15) << "Recall@10"
-              << "\n";
-    std::cout << "------------------------------------------------------------------------\n";
-
-    auto print_row = [](const std::string& name, double lat_us, double recall) {
-        std::cout << std::left 
-                  << std::setw(20) << name
-                  << std::fixed << std::setprecision(2)
-                  << std::setw(15) << lat_us
-                  << std::setprecision(0)
-                  << std::setw(18) << ((1.0 / lat_us) * 1e6)
-                  << std::setprecision(4)
-                  << std::setw(15) << recall
-                  << "\n";
-    };
-
-    print_row("FlatIndex (Exact)", flat_lat, flat_recall / query_count);
-    print_row("QuantizedFlat (SQ8)", qflat_lat, qflat_recall / query_count);
-
-    // Sweep ef_search for HNSW
-    const std::vector<std::size_t> ef_values = {32, 64, 100, 150};
-    for (auto ef : ef_values) {
-        hnsw.set_ef_search(ef);
-        t0 = std::chrono::high_resolution_clock::now();
-        double recall = 0.0;
-        for (std::size_t q = 0; q < query_count; ++q) {
-            auto res = hnsw.search(get_query(q), K);
-            recall += compute_recall(ground_truth[q], res, K);
-        }
-        t1 = std::chrono::high_resolution_clock::now();
-        double lat = std::chrono::duration<double, std::micro>(t1 - t0).count() / query_count;
-        print_row("HNSW (ef=" + std::to_string(ef) + ")", lat, recall / query_count);
-    }
-
-    // Sweep ef_search for HNSW-SQ8
     for (auto ef : ef_values) {
         sq8.set_ef_search(ef);
-        t0 = std::chrono::high_resolution_clock::now();
-        double recall = 0.0;
-        for (std::size_t q = 0; q < query_count; ++q) {
-            auto res = sq8.search(get_query(q), K);
-            recall += compute_recall(ground_truth[q], res, K);
-        }
-        t1 = std::chrono::high_resolution_clock::now();
-        double lat = std::chrono::duration<double, std::micro>(t1 - t0).count() / query_count;
-        print_row("HNSW-SQ8 (ef=" + std::to_string(ef) + ")", lat, recall / query_count);
+        print_row("HNSW-SQ8 (ef=" + std::to_string(ef) + ")",
+                  measure([&](VectorView q) { return sq8.search(q, K); }));
     }
 
-    std::cout << "========================================================================\n\n";
+    std::cout << "========================================================================\n";
+    std::cout << "Single thread; " << query_count << " queries x " << REPEATS
+              << " passes per row; HNSW M=16 efConstruction=200; SQ8 re-rank factor 5.0\n";
     return 0;
 }

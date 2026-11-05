@@ -5,6 +5,7 @@
 
 #include <array>
 #include <charconv>
+#include <system_error>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -99,6 +100,23 @@ void HttpServer::start() {
     }
 }
 
+namespace {
+
+constexpr size_t MAX_BODY_SIZE = 16 * 1024 * 1024;
+constexpr size_t MAX_HEADER_SIZE = 16 * 1024;
+
+void send_error_and_close(socket_t client_fd, int status, const char* reason, const char* message) {
+    HttpResponse res(status, reason);
+    res.set_header("Content-Type", "application/json");
+    res.set_header("Connection", "close");
+    res.set_body(std::string("{\"status\":\"error\",\"message\":\"") + message + "\"}");
+    const std::string out = res.to_string();
+    send(client_fd, out.data(), static_cast<int>(out.size()), 0);
+    CLOSE_SOCKET(client_fd);
+}
+
+} // namespace
+
 void HttpServer::handle_client(socket_t client_fd) {
     std::string raw_request;
     std::array<char, 4096> buffer{};
@@ -110,6 +128,11 @@ void HttpServer::handle_client(socket_t client_fd) {
         const int bytes_read = recv(client_fd, buffer.data(), static_cast<int>(buffer.size()), 0);
         if (bytes_read <= 0) break;
         raw_request.append(buffer.data(), static_cast<size_t>(bytes_read));
+
+        if (!headers_parsed && raw_request.size() > MAX_HEADER_SIZE + MAX_BODY_SIZE) {
+            send_error_and_close(client_fd, 413, "Payload Too Large", "Request exceeds the maximum allowed size.");
+            return;
+        }
 
         if (!headers_parsed) {
             std::string_view req_view(raw_request);
@@ -128,14 +151,30 @@ void HttpServer::handle_client(socket_t client_fd) {
                     const auto first_digit = val_view.find_first_not_of(" \t");
                     if (first_digit != std::string_view::npos) {
                         val_view.remove_prefix(first_digit);
-                        std::from_chars(val_view.data(), val_view.data() + val_view.size(), content_length);
+                        const auto parsed = std::from_chars(val_view.data(), val_view.data() + val_view.size(), content_length);
+                        if (parsed.ec == std::errc::result_out_of_range) {
+                            content_length = MAX_BODY_SIZE + 1;
+                        }
                     }
+                }
+
+                if (header_end_pos > MAX_HEADER_SIZE) {
+                    send_error_and_close(client_fd, 431, "Request Header Fields Too Large", "Request headers are too large.");
+                    return;
+                }
+                if (content_length > MAX_BODY_SIZE) {
+                    send_error_and_close(client_fd, 413, "Payload Too Large", "Request body exceeds the 16 MiB limit.");
+                    return;
                 }
             }
         }
 
         if (headers_parsed) {
             const size_t body_received = raw_request.size() - (header_end_pos + 4);
+            if (body_received > MAX_BODY_SIZE) {
+                send_error_and_close(client_fd, 413, "Payload Too Large", "Request body exceeds the 16 MiB limit.");
+                return;
+            }
             if (body_received >= content_length) {
                 break;
             }
