@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ------------------------------------------------------------------------------
 # Stage 1: web frontend build
 # vite is configured with outDir '../public', so the bundle lands in /app/public
