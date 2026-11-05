@@ -1,6 +1,7 @@
 ﻿#include "engine/storage/wal_manager.hpp"
 #include "engine/storage/crc32.hpp"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cstddef>
