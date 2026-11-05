@@ -110,12 +110,12 @@ void ConceptRegistry::init_concepts() {
     concepts_[30] = { 31, 1, "Layer 0 Base Connectivity", "Graph", "max_m0_ (2*M) degree allowance for dense base clustering.", "engine/index/hnsw_index.hpp" };
     concepts_[31] = { 32, 1, "ef_search Beam Width", "Tuning", "Runtime balance between query recall and search latency.", "engine/index/hnsw_index.hpp" };
     concepts_[32] = { 33, 1, "ef_construction Quality", "Indexing", "Candidate beam size during index insertion graph building.", "engine/index/hnsw_index.hpp" };
-    concepts_[33] = { 34, 1, "Nearest-Replacement Link Pruning", "Graph", "When a neighbor list is full, the farthest neighbor is replaced if the new link is closer. The diversity heuristic from the HNSW paper is not implemented.", "src/index/hnsw_common.hpp" };
+    concepts_[33] = { 34, 1, "Diversity Neighbor Selection", "Graph", "Neighbors are chosen with the HNSW paper heuristic (Algorithm 4, pruned connections kept), which preserves bridges between clusters.", "src/index/hnsw_common.hpp" };
     concepts_[34] = { 35, 1, "Bounded Neighbor Lists", "Graph", "Neighbor lists are capped at M (upper layers) and 2*M (layer 0).", "src/index/hnsw_common.hpp" };
     concepts_[35] = { 36, 1, "Scalar Quantizer (SQ8)", "Quantization", "Per-dimension 8-bit quantization of FP32 values; HNSWIndexSQ8 also keeps the raw floats for re-ranking.", "src/quantization/scalar_quantizer.cpp" };
     concepts_[36] = { 37, 1, "Asymmetric Distance Calc (ADC)", "Search", "Query float vector against 8-bit quantized database vectors.", "engine/index/hnsw_index_sq8.cpp" };
     concepts_[37] = { 38, 1, "Re-ranking Pipeline", "Algorithm", "Top candidate re-evaluation using exact full-precision vectors.", "engine/index/hnsw_index_sq8.cpp" };
-    concepts_[38] = { 39, 1, "Recall@10 SIFT Benchmark", "Benchmark", "Recall@10, P50 and QPS measured on SIFT-10K; results vary between runs (see README, section 4.2).", "benchmarks/bench_sift.cpp" };
+    concepts_[38] = { 39, 1, "Recall@10 SIFT Benchmark", "Benchmark", "Recall@10, P50, P99 and QPS measured on SIFT-10K over 10 independent builds (see README, section 4.2).", "benchmarks/bench_sift.cpp" };
     concepts_[39] = { 40, 1, "FlatIndex Ground Truth", "Index", "Exact brute-force index for baseline accuracy validation.", "engine/index/flat_index.cpp" };
     concepts_[40] = { 41, 1, "QuantizedFlatIndex Scan", "Index", "Linear scan over compact SQ8 vector payloads.", "engine/index/quantized_flat_index.cpp" };
     concepts_[41] = { 42, 1, "Flat Link Storage Buffer", "Memory", "Contiguous link buffer avoiding pointer indirection overhead.", "engine/index/hnsw_index.hpp" };

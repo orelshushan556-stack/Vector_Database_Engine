@@ -187,8 +187,10 @@ void HNSWIndexSQ8::add_link(uint32_t src, uint32_t dst, int level) {
     }
 
     const VectorView src_vec = get_raw_vector(src);
-    hnsw_detail::add_link_impl(graph_data, offset, max_links, dst,
-                               [&](uint32_t node) { return compute_quantized_distance(src_vec, node); });
+    hnsw_detail::add_link_impl(
+        graph_data, offset, max_links, dst,
+        [&](uint32_t node) { return compute_quantized_distance(src_vec, node); },
+        [&](uint32_t a, uint32_t b) { return compute_quantized_distance(get_raw_vector(a), b); });
 }
 
 void HNSWIndexSQ8::add(VectorId id, VectorView vector) {
@@ -240,9 +242,10 @@ void HNSWIndexSQ8::add(VectorId id, VectorView vector) {
             enter_points.push_back(node);
         }
 
-        const std::size_t target_m = (lc == 0) ? max_m0_ : max_m_;
-        hnsw_detail::connect_new_node(new_id, candidates, target_m,
-                                      [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc); });
+        hnsw_detail::connect_new_node(
+            new_id, candidates, max_m_,
+            [&](uint32_t a, uint32_t b) { return compute_quantized_distance(get_raw_vector(a), b); },
+            [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc); });
     }
 
     if (new_level > max_level_) {

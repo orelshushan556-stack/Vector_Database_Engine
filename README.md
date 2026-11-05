@@ -68,8 +68,9 @@ Structure:
 - Node level is drawn as `floor(-ln(U) * (1 / ln(M)))` with `U` uniform in (0, 1]. The generator is a `std::mt19937` seeded from `std::random_device`, so graph structure is not deterministic across runs.
 - Layer 0 adjacency is a flat `uint32_t` array with a fixed stride of `M0 + 1` per node (degree followed by neighbor ids). Upper layers are stored per node as `level * (M + 1)` entries.
 - Internal ids are dense `uint32_t` indexes; user-visible `VectorId` (`uint64_t`) is mapped through an `ids_` table.
-- Insertion: greedy descent with ef = 1 from the entry point down to the node's level, then at each level from `min(max_level, node_level)` to 0 a beam search with width `efConstruction` selects up to `M` (or `M0`) nearest candidates, and bidirectional links are added.
-- Link pruning: when a node is at capacity, the new link replaces the current farthest neighbor only if it is closer. This is a nearest-neighbor replacement rule; the diversity-based neighbor-selection heuristic from the HNSW paper is not implemented.
+- Insertion: greedy descent with ef = 1 from the entry point down to the node's level, then at each level from `min(max_level, node_level)` to 0 a beam search with width `efConstruction` collects candidates. The new node's outgoing links are chosen from those candidates by the neighbor-selection heuristic below (up to `M` links per level), and a reverse link is added from each chosen neighbor.
+- Neighbor selection: Algorithm 4 of the HNSW paper with `keepPrunedConnections`. Candidates are scanned in order of increasing distance to the base node; a candidate is kept only if it is closer to the base node than to every neighbor already kept, and discarded candidates fill any remaining slots. This spreads links across directions and preserves the long-range edges between clusters.
+- Link maintenance: when a reverse link is added to a node that is already at capacity (`M` on layers >= 1, `M0` on layer 0), the node's existing neighbors plus the new one are re-selected with the same heuristic. An earlier implementation replaced only the single farthest neighbor, which left 45% to 55% of layer-0 nodes unreachable from the entry point in most builds; with the heuristic every layer-0 node was reachable from the entry point in all 8 builds checked (SIFT-10K, `M` = 16, `efConstruction` = 200), with no node of in-degree zero. A regression test (`RecallIsStableAcrossRandomBuilds` in `tests/test_hnsw.cpp` and `tests/test_hnsw_sq8.cpp`) builds six graphs over clustered data and fails on the earlier implementation (recall 0.33 to 0.57).
 - Query: greedy descent through upper layers (hill climbing with a single entry point), then a best-first beam search on layer 0 with width `max(efSearch, k)`.
 - Visited-set tracking uses a thread-local tag array, avoiding per-query allocation and clearing.
 - There is no delete operation. `add` with an existing id appends a second node; ids are not deduplicated.
@@ -80,8 +81,9 @@ Shared graph core: `src/index/hnsw_common.hpp` holds the traversal and maintenan
 |--------------------------|-------------------------------------------------------------------------------------------------|
 | `search_layer_impl`      | Best-first beam search on one layer; takes link-access, distance, and prefetch callables         |
 | `greedy_descend`         | Single-entry hill climb through the upper layers                                                |
-| `add_link_impl`          | Append a neighbor, or replace the farthest existing neighbor if the new one is closer            |
-| `connect_new_node`       | Bidirectional linking of a new node to its closest `M` / `M0` candidates                         |
+| `select_neighbors_heuristic` | Diversity-based neighbor selection (HNSW Algorithm 4 with kept pruned connections)          |
+| `add_link_impl`          | Append a neighbor; if the list is full, re-select the neighbors plus the new one with the heuristic |
+| `connect_new_node`       | Heuristic selection of the new node's neighbors and bidirectional linking                         |
 | `VisitedList`            | Thread-local epoch-tagged visited set shared by both index types                                 |
 
 Each index supplies only its storage layout and metric dispatch: `HNSWIndex::distance_to` over FP32 vectors, and `HNSWIndexSQ8::compute_quantized_distance` over SQ8 codes (L2) or raw FP32 (cosine, dot product).
@@ -148,7 +150,7 @@ Replay (`WalManager::replay`, invoked from the `VectorEngine` constructor) reads
 
 Torn-tail recovery: a crash during an append leaves an incomplete record at the physical end of the log. Replay stops at the last verified record and truncates the file to that byte offset (`ftruncate`, or `_chsize_s` on Windows) so that subsequent appends do not follow garbage. A record that is complete but fails validation is treated as hard corruption and aborts replay; the server does not catch the exception during startup, so the process terminates and the log must be repaired or removed by an operator. A bad dimension field is always treated as hard corruption, even at the tail of the log.
 
-Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. After the rename, the parent directory entry is made durable: on POSIX the directory is opened (`O_RDONLY | O_DIRECTORY`) and `fsync`ed, so the new name survives sudden power loss; on Windows, where directories cannot be flushed, the replacement uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, which returns only after the move has been written through. The POSIX directory-fsync branch has not been compiled or run in this repository's development environment (Windows with MinGW); only the Windows path has been exercised. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
+Checkpointing (`VectorEngine::create_checkpoint`) writes the snapshot through `Serializer::save`, which writes to `<path>.tmp`, flushes and synchronizes the file (`fsync` / `_commit`), and then renames it over the target. A crash at any point leaves either the previous snapshot or the new one, never a partial file; on failure the temporary file is removed. After the rename, the parent directory entry is made durable: on POSIX the directory is opened (`O_RDONLY | O_DIRECTORY`) and `fsync`ed, so the new name survives sudden power loss; on Windows, where directories cannot be flushed, the replacement uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, which returns only after the move has been written through. Both branches are built and exercised: the Windows branch by the native MinGW build, and the POSIX branch by the Linux (Ubuntu 24.04, GCC) build inside the `test` stage of the `Dockerfile`, which runs the checkpoint tests. Their power-loss behavior itself has not been tested. After the snapshot, the WAL is truncated (`clear`, which reopens the file with `"wb+"`). The checkpoint holds the WAL mutex for its whole duration, and `insert` holds the same mutex across both the WAL append and the index update, so an acknowledged insert is always either in the snapshot or in the WAL that survives it. Snapshot files begin with a 32-bit magic (`VECI` flat, `HNSW`, `SQ8H`) and a version field (currently 1). On startup, `nexus_server` loads `index.bin` if it exists in the working directory, otherwise it builds the default concept index.
 
 ### 2.5 Thread pool and concurrency model
 
@@ -215,26 +217,27 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 
 `benchmarks/bench_sift.cpp` (target `bench_sift`) evaluates the SIFT-small dataset (10,000 base vectors, 128 dimensions, 100 queries, k = 10) against the provided ground truth. For each configuration it runs one scoring pass for recall and then 20 timed passes over all queries, timing every query individually, and reports Recall@10, P50, P99, mean latency, and single-thread QPS (1 / mean latency). It reads `data/siftsmall/siftsmall_base.fvecs`, `siftsmall_query.fvecs` and the ground-truth ivecs file relative to the working directory; `data/` is git-ignored.
 
-Measured results (AMD Ryzen AI 7 350, Windows 11, MinGW GCC 15.2 with `-O3 -mavx2 -mfma`, single thread, HNSW M = 16, efConstruction = 200, SQ8 re-rank factor 5.0; median of 10 independent runs of the harness):
+Measured results (AMD Ryzen AI 7 350, Windows 11, MinGW GCC 15.2 with `-O3 -mavx2 -mfma`, single thread, HNSW M = 16, efConstruction = 200, SQ8 re-rank factor 5.0). Each row is the median over 10 independent runs of the harness; every run builds a new graph from a fresh random seed. Recall is shown with its minimum and maximum over the 10 runs.
 
-| Configuration         | Recall@10 median (min - max) | P50 (us) | QPS (1 thread) |
-|-----------------------|------------------------------|----------|----------------|
-| `FlatIndex` (exact)   | 1.000 (1.000 - 1.000)        | 86.6     | 9,526          |
-| `QuantizedFlatIndex`  | 0.990 (0.990 - 0.990)        | 125.8    | 6,748          |
-| `HNSWIndex` ef = 32   | 0.925 (0.402 - 0.980)        | 21.6     | 38,225         |
-| `HNSWIndex` ef = 64   | 0.937 (0.419 - 0.994)        | 37.1     | 23,602         |
-| `HNSWIndex` ef = 100  | 0.939 (0.422 - 0.997)        | 53.1     | 16,823         |
-| `HNSWIndex` ef = 150  | 0.941 (0.430 - 0.998)        | 73.0     | 12,847         |
-| `HNSWIndexSQ8` ef = 32  | 0.986 (0.616 - 0.997)      | 91.3     | 9,453          |
-| `HNSWIndexSQ8` ef = 64  | 0.987 (0.620 - 0.998)      | 160.1    | 5,531          |
-| `HNSWIndexSQ8` ef = 100 | 0.988 (0.621 - 0.999)      | 238.9    | 3,733          |
-| `HNSWIndexSQ8` ef = 150 | 0.989 (0.621 - 1.000)      | 341.6    | 2,552          |
+| Configuration           | Recall@10 median (min - max) | P50 (us) | P99 (us) | QPS (1 thread) |
+|-------------------------|------------------------------|----------|----------|----------------|
+| `FlatIndex` (exact)     | 1.000 (1.000 - 1.000)        | 86.5     | 235.4    | 10,016         |
+| `QuantizedFlatIndex`    | 0.990 (0.990 - 0.990)        | 125.0    | 344.0    | 7,009          |
+| `HNSWIndex` ef = 32     | 0.997 (0.986 - 0.998)        | 21.4     | 65.4     | 43,522         |
+| `HNSWIndex` ef = 64     | 0.999 (0.989 - 1.000)        | 40.2     | 134.2    | 22,658         |
+| `HNSWIndex` ef = 100    | 1.000 (0.990 - 1.000)        | 61.0     | 184.8    | 14,724         |
+| `HNSWIndex` ef = 150    | 1.000 (0.990 - 1.000)        | 82.7     | 217.2    | 11,462         |
+| `HNSWIndexSQ8` ef = 32  | 1.000 (0.999 - 1.000)        | 95.8     | 276.3    | 9,657          |
+| `HNSWIndexSQ8` ef = 64  | 1.000 (0.999 - 1.000)        | 169.0    | 505.3    | 5,212          |
+| `HNSWIndexSQ8` ef = 100 | 1.000 (0.999 - 1.000)        | 240.4    | 656.6    | 3,694          |
+| `HNSWIndexSQ8` ef = 150 | 1.000 (0.999 - 1.000)        | 335.5    | 882.0    | 2,603          |
 
-Known limitations of these results:
+Interpretation and limitations:
 
-- Recall of both HNSW variants is highly variable between runs and does not improve with larger `efSearch`: the worst of 10 runs reached only 0.40 (HNSW) and 0.62 (HNSW-SQ8). Graph construction is seeded from `std::random_device`, so every run builds a different graph. A diagnostic on the layer-0 graph showed that between roughly 45% and 55% of nodes were not reachable from the entry point by following directed links in most builds, with hundreds of nodes having in-degree zero. The nearest-replacement link pruning (section 2.2), which can leave a newly inserted node without any incoming link, is the leading suspect; this has not been confirmed and is an open defect. The same behavior reproduces on the code from before the shared-graph refactor, so it is not a regression from it.
-- On this dataset `HNSWIndexSQ8` is slower than brute-force `FlatIndex`: with a re-rank factor of 5.0 it scores `5 * max(efSearch, k)` exact distances per query on top of the graph traversal, and at 10,000 vectors a full AVX2 scan is already cheap.
-- The query set is 100 vectors; the figures are single-thread latency, not server throughput.
+- Recall is stable across builds: the worst run of any HNSW configuration reached 0.986 (`HNSWIndex`) and 0.999 (`HNSWIndexSQ8`). Before the neighbor-selection change (section 2.2) the same harness produced run-to-run minima of 0.40 and 0.62.
+- `HNSWIndexSQ8` re-ranks the entire candidate pool collected on layer 0 (`max(efSearch, k) * re_rank_factor` candidates, all rescored with exact FP32 distances) before truncating to `k`; it does not truncate to `k` first. With a factor of 5.0 it therefore performs `5 * max(efSearch, k)` exact distance computations per query, and on this dataset it is slower than brute-force `FlatIndex`. Its benefit is the 1-byte code scan during traversal, which matters for memory bandwidth at larger scales, not for a 10,000-vector corpus that fits in cache. A smaller re-rank factor lowers latency at some cost in recall.
+- Scalar quantizer calibration was reviewed: `QuantizedFlatIndex` reaches 0.990 Recall@10 with plain per-dimension min/max bounds, so percentile clipping was not introduced.
+- The query set is 100 vectors, the figures are single-thread latency rather than server throughput, and they were produced on one machine; they are not comparable with figures from other hardware or datasets.
 
 ### 4.3 Memory efficiency
 
@@ -291,7 +294,31 @@ cd Vector_Database_Engine
 docker compose up --build -d
 ```
 
-The image is built in three stages: a Node 20 stage builds the frontend into `public/`, an Ubuntu 24.04 stage compiles `nexus_server` with `-DCMAKE_BUILD_TYPE=Release -mavx2 -mfma -O3`, and a runtime stage carries the binary, `public/`, and `libstdc++`. The service listens on port 8080.
+The image is built in five stages (see the header of `Dockerfile`):
+
+| Stage          | Purpose                                                                                           |
+|----------------|---------------------------------------------------------------------------------------------------|
+| `web-build`    | Node 20; builds the dashboard into `public/`                                                      |
+| `engine-build` | Ubuntu 24.04 with GCC, CMake and Ninja; Release build of every target with `-mavx2 -mfma -O3`    |
+| `test`         | Runs `ctest --output-on-failure`; a failing test fails the image build                            |
+| `bench`        | Entry point is `bench_sift`; the dataset is mounted at run time                                   |
+| `runtime`      | `nexus_server`, `public/` and `libstdc++` only; the default target                                |
+
+The `runtime` stage depends on the `test` stage, so `docker build -t vector-engine:latest .` compiles, runs the full test suite, and produces the runtime image only if every test passes. GoogleTest is fetched during the configure step, which requires network access. The host CPU must support AVX2 and FMA. The service listens on port 8080.
+
+Build and run the service image directly:
+
+```bash
+docker build -t vector-engine:latest .
+docker run --rm -p 8080:8080 -v "$(pwd)/data:/app/data" vector-engine:latest
+```
+
+Run the SIFT benchmark in a container (the `data/siftsmall/` files are git-ignored and must be present on the host):
+
+```bash
+docker build --target bench -t vector-engine:bench .
+docker run --rm -v "$(pwd)/data:/src/data:ro" vector-engine:bench
+```
 
 Persistence: `./data` on the host is mounted at `/app/data`, and `/app/nexus.wal` is a symlink to `/app/data/nexus.wal`, so the WAL survives container replacement. The checkpoint file `index.bin` is written to the container working directory (`/app/index.bin`), which is not on the volume, so a checkpoint is lost when the container is recreated; because checkpointing also truncates the WAL, do not rely on `/api/checkpoint` for durability in the default compose configuration.
 

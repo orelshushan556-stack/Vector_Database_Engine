@@ -146,6 +146,11 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
 
     const int start_level = std::min(max_level_, new_level);
 
+    auto pair_dist = [&](uint32_t a, uint32_t b) {
+        const VectorView va(&storage_[static_cast<std::size_t>(a) * dimension_], dimension_);
+        return distance_to(va, b);
+    };
+
     auto add_link = [&](uint32_t src, uint32_t dst, int level, std::size_t max_links) {
         uint32_t* graph_data = nullptr;
         std::size_t offset = 0;
@@ -160,11 +165,12 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
 
         const VectorView src_vec(&storage_[static_cast<std::size_t>(src) * dimension_], dimension_);
         hnsw_detail::add_link_impl(graph_data, offset, max_links, dst,
-                                   [&](uint32_t node) { return distance_to(src_vec, node); });
+                                   [&](uint32_t node) { return distance_to(src_vec, node); },
+                                   pair_dist);
     };
 
     for (int lc = start_level; lc >= 0; --lc) {
-        const std::size_t target_m = (lc == 0) ? max_m0_ : m_;
+        const std::size_t max_links = (lc == 0) ? max_m0_ : m_;
         const auto candidates = hnsw_detail::drain_ascending(
             search_layer(vector, curr_ep, ef_construction_, lc));
 
@@ -172,8 +178,8 @@ void HNSWIndex::add(VectorId id, VectorView vector) {
             curr_ep = candidates.front().second;
         }
 
-        hnsw_detail::connect_new_node(cur_internal_id, candidates, target_m,
-                                      [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc, target_m); });
+        hnsw_detail::connect_new_node(cur_internal_id, candidates, m_, pair_dist,
+                                      [&](uint32_t src, uint32_t dst) { add_link(src, dst, lc, max_links); });
     }
 
     if (new_level > max_level_) {

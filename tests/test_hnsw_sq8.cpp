@@ -1,4 +1,5 @@
 ﻿#include <gtest/gtest.h>
+#include "engine/index/index_base.hpp"
 #include "engine/index/hnsw_index_sq8.hpp"
 #include "engine/index/flat_index.hpp"
 #include "engine/quantization/scalar_quantizer.hpp"
@@ -15,6 +16,39 @@
 
 namespace engine {
 namespace {
+
+// Gaussian clusters with wide separation: the layout that exposed unreachable regions
+// in graphs built with nearest-replacement pruning.
+std::vector<float> make_clustered_dataset(std::size_t dim, std::size_t count, std::size_t clusters,
+                                          std::mt19937& rng) {
+    std::normal_distribution<float> center_dist(0.0f, 10.0f);
+    std::normal_distribution<float> noise(0.0f, 1.0f);
+    std::vector<std::vector<float>> centers(clusters, std::vector<float>(dim));
+    for (auto& c : centers) {
+        for (auto& v : c) v = center_dist(rng);
+    }
+    std::vector<float> data(count * dim);
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& c = centers[i % clusters];
+        for (std::size_t d = 0; d < dim; ++d) data[i * dim + d] = c[d] + noise(rng);
+    }
+    return data;
+}
+
+double recall_at_k(const IndexBase& approx, const IndexBase& exact, const std::vector<float>& queries,
+                   std::size_t dim, std::size_t k) {
+    const std::size_t nq = queries.size() / dim;
+    double total = 0.0;
+    for (std::size_t q = 0; q < nq; ++q) {
+        VectorView qv(queries.data() + q * dim, dim);
+        std::unordered_set<VectorId> truth;
+        for (const auto& r : exact.search(qv, k)) truth.insert(r.id);
+        std::size_t hit = 0;
+        for (const auto& r : approx.search(qv, k)) hit += truth.contains(r.id) ? 1 : 0;
+        total += static_cast<double>(hit) / static_cast<double>(k);
+    }
+    return total / static_cast<double>(nq);
+}
 
 std::vector<float> make_random_vec(std::size_t dim, std::mt19937& rng, float min_v = -2.0f, float max_v = 2.0f) {
     std::uniform_real_distribution<float> dist(min_v, max_v);
@@ -234,6 +268,29 @@ TEST(HNSWIndexSQ8Test, ConcurrentSearchStress) {
 
     for (auto& f : futures) {
         EXPECT_TRUE(f.get());
+    }
+}
+
+TEST(HNSWIndexSQ8Test, RecallIsStableAcrossRandomBuilds) {
+    constexpr std::size_t dim = 32, n = 4000, clusters = 20, k = 10;
+    std::mt19937 data_rng(7);
+    const auto base = make_clustered_dataset(dim, n + 100, clusters, data_rng);
+
+    FlatIndex flat(dim, MetricType::L2);
+    for (std::size_t i = 0; i < n; ++i) {
+        flat.add(i, VectorView(base.data() + i * dim, dim));
+    }
+    const std::vector<float> queries(base.begin() + n * dim, base.end());
+
+    ScalarQuantizer quantizer(dim);
+    quantizer.train(std::span<const float>(base.data(), n * dim));
+
+    for (int build = 0; build < 6; ++build) {
+        HNSWIndexSQ8 sq8(dim, MetricType::L2, quantizer, 16, 200, 64, 2.0f);
+        for (std::size_t i = 0; i < n; ++i) {
+            sq8.add(i, VectorView(base.data() + i * dim, dim));
+        }
+        EXPECT_GE(recall_at_k(sq8, flat, queries, dim, k), 0.90) << "build " << build;
     }
 }
 

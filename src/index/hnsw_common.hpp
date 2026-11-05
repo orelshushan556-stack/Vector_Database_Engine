@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <queue>
 #include <span>
 #include <utility>
@@ -156,12 +155,58 @@ inline std::vector<DistPair> drain_ascending(MaxHeap&& heap) {
     return out;
 }
 
-// Append dst to the adjacency block at graph_data[offset] (slot 0 holds the degree).
-// When full, replace the farthest existing neighbor if dst is closer.
-//   dist_from_src(node) -> distance between the block owner and node
-template <class DistFromSrc>
+// Neighbor selection heuristic (Algorithm 4 of the HNSW paper, with keepPrunedConnections).
+// A candidate is kept only if it is closer to the base node than to every neighbor already
+// kept; this spreads links across directions and retains the long-range edges that bridge
+// clusters. If fewer than m candidates survive, pruned candidates fill the remaining slots
+// in order of increasing distance, so a node never gets fewer links than are available.
+//   ascending      -> candidates sorted by ascending distance to the base node
+//   pair_dist(a,b) -> distance between two stored nodes
+template <class PairDist>
+std::vector<DistPair> select_neighbors_heuristic(const std::vector<DistPair>& ascending,
+                                                 std::size_t m,
+                                                 PairDist&& pair_dist) {
+    if (ascending.size() <= m) {
+        return ascending;
+    }
+
+    std::vector<DistPair> kept;
+    kept.reserve(m);
+    std::vector<DistPair> pruned;
+
+    for (const DistPair& cand : ascending) {
+        if (kept.size() >= m) {
+            break;
+        }
+        bool diverse = true;
+        for (const DistPair& chosen : kept) {
+            if (pair_dist(cand.second, chosen.second) < cand.first) {
+                diverse = false;
+                break;
+            }
+        }
+        if (diverse) {
+            kept.push_back(cand);
+        } else {
+            pruned.push_back(cand);
+        }
+    }
+
+    for (std::size_t i = 0; i < pruned.size() && kept.size() < m; ++i) {
+        kept.push_back(pruned[i]);
+    }
+    return kept;
+}
+
+// Add dst to the adjacency block at graph_data[offset] (slot 0 holds the degree).
+// If the block is full, the existing neighbors plus dst are re-selected with the diversity
+// heuristic, so the owner keeps a well-spread set of links instead of silently dropping the
+// new edge or only the farthest one.
+//   dist_from_owner(node) -> distance between the block owner and node
+//   pair_dist(a, b)       -> distance between two stored nodes
+template <class DistFromOwner, class PairDist>
 void add_link_impl(uint32_t* graph_data, std::size_t offset, std::size_t max_links,
-                   uint32_t dst, DistFromSrc&& dist_from_src) {
+                   uint32_t dst, DistFromOwner&& dist_from_owner, PairDist&& pair_dist) {
     uint32_t& degree = graph_data[offset];
 
     if (degree < max_links) {
@@ -170,32 +215,29 @@ void add_link_impl(uint32_t* graph_data, std::size_t offset, std::size_t max_lin
         return;
     }
 
-    float max_dist = std::numeric_limits<float>::lowest();
-    uint32_t worst_idx = 0;
-    const float dist_new = dist_from_src(dst);
-
+    std::vector<DistPair> pool;
+    pool.reserve(static_cast<std::size_t>(degree) + 1);
+    pool.emplace_back(dist_from_owner(dst), dst);
     for (uint32_t i = 0; i < degree; ++i) {
-        const float d = dist_from_src(graph_data[offset + 1 + i]);
-        if (d > max_dist) {
-            max_dist = d;
-            worst_idx = i;
-        }
+        const uint32_t node = graph_data[offset + 1 + i];
+        pool.emplace_back(dist_from_owner(node), node);
     }
+    std::sort(pool.begin(), pool.end());
 
-    if (dist_new < max_dist) {
-        graph_data[offset + 1 + worst_idx] = dst;
+    const std::vector<DistPair> kept = select_neighbors_heuristic(pool, max_links, pair_dist);
+    degree = static_cast<uint32_t>(kept.size());
+    for (std::size_t i = 0; i < kept.size(); ++i) {
+        graph_data[offset + 1 + i] = kept[i].second;
     }
 }
 
-// Link new_id bidirectionally to the closest target_m of the ascending candidates.
-template <class AddLinkFn>
+// Link new_id bidirectionally to up to m neighbors chosen from the ascending candidates.
+template <class PairDist, class AddLinkFn>
 void connect_new_node(uint32_t new_id, const std::vector<DistPair>& ascending,
-                      std::size_t target_m, AddLinkFn&& add_link) {
-    const std::size_t n = std::min(ascending.size(), target_m);
-    for (std::size_t i = 0; i < n; ++i) {
-        const uint32_t neighbor = ascending[i].second;
-        add_link(new_id, neighbor);
-        add_link(neighbor, new_id);
+                      std::size_t m, PairDist&& pair_dist, AddLinkFn&& add_link) {
+    for (const DistPair& chosen : select_neighbors_heuristic(ascending, m, pair_dist)) {
+        add_link(new_id, chosen.second);
+        add_link(chosen.second, new_id);
     }
 }
 
