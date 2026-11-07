@@ -57,3 +57,6 @@ web/archive/
 
 # Benchmark build trees and scratch (snapshots, WALs)
 build-bench/
+
+# Python bytecode
+__pycache__/

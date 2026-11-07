@@ -1,0 +1,153 @@
+{
+ "suite": "crash_recovery",
+ "task": "replay_time",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T18:29:59Z",
+ "command": [
+  "/home/orels/nexus_bench_build/nofsync/nexus_bench",
+  "wal-replay",
+  "--dir",
+  "/home/orels/nexus_bench_build/work/replay",
+  "--records",
+  "10000,100000,1000000",
+  "--hnsw-max",
+  "100000",
+  "--repeats",
+  "3",
+  "--out",
+  "/home/orels/nexus_bench_build/work/crash_recovery__replay_time.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "b48c33bf121fbab99d1b8612cae038bd4d710cb4",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "filesystem": "ext4 on /dev/sdd (mount /)",
+ "wall_seconds": 32.571,
+ "result": {
+  "compiler": "gcc 15.2.0",
+  "build_flags": "avx2 fma NDEBUG NEXUS_WAL_NO_FSYNC",
+  "dim": 128,
+  "page_cache": "warm (file just written; caches not dropped)",
+  "results": [
+   {
+    "records": 10000,
+    "wal_bytes": 5300000,
+    "write_seconds": 0.005845198,
+    "raw_replay_seconds": [
+     0.001394863,
+     0.001354154,
+     0.001171412
+    ],
+    "recover_flat_seconds": [
+     0.004512986,
+     0.001962169,
+     0.001815373
+    ],
+    "recover_hnsw_seconds": [
+     1.420952407
+    ]
+   },
+   {
+    "records": 100000,
+    "wal_bytes": 53000000,
+    "write_seconds": 0.054822193,
+    "raw_replay_seconds": [
+     0.012638106,
+     0.01236085,
+     0.012482386
+    ],
+    "recover_flat_seconds": [
+     0.052193629,
+     0.038111901,
+     0.038202177
+    ],
+    "recover_hnsw_seconds": [
+     28.58347795
+    ]
+   },
+   {
+    "records": 1000000,
+    "wal_bytes": 530000000,
+    "write_seconds": 0.612581826,
+    "raw_replay_seconds": [
+     0.120857543,
+     0.121633411,
+     0.132944632
+    ],
+    "recover_flat_seconds": [
+     0.482899919,
+     0.401074936,
+     0.385693506
+    ],
+    "recover_hnsw_seconds": []
+   }
+  ]
+ }
+}

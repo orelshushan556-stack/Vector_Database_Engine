@@ -1,0 +1,185 @@
+{
+ "suite": "concurrency",
+ "task": "read_only_repeat",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T18:32:56Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "concurrency",
+  "--snapshot",
+  "/home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus",
+  "--query",
+  "/home/orels/nexus_data/sift/sift_query.fvecs",
+  "--threads",
+  "1,2,4,6,8,10,12,16",
+  "--seconds",
+  "10",
+  "--ef",
+  "64",
+  "--wal",
+  "/home/orels/nexus_bench_build/work/concurrency.wal",
+  "--write-frac",
+  "0.0",
+  "--out",
+  "/home/orels/nexus_bench_build/work/concurrency__read_only_repeat.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "b48c33bf121fbab99d1b8612cae038bd4d710cb4",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "threads_unpinned": true,
+ "filesystem": "ext4 on /dev/sdd (mount /)",
+ "wall_seconds": 81.102,
+ "result": {
+  "compiler": "gcc 15.2.0",
+  "build_flags": "avx2 fma NDEBUG",
+  "ef": 64,
+  "k": 10,
+  "write_frac": 0,
+  "seconds_per_point": 10,
+  "index_size_start": 1000000,
+  "hardware_threads": 16,
+  "points": [
+   {
+    "threads": 1,
+    "seconds": 10.0004517,
+    "reads": 85453,
+    "writes": 0,
+    "read_qps": 8544.914027,
+    "write_ops": 0,
+    "total_ops": 8544.914027
+   },
+   {
+    "threads": 2,
+    "seconds": 10.00038158,
+    "reads": 156431,
+    "writes": 0,
+    "read_qps": 15642.50311,
+    "write_ops": 0,
+    "total_ops": 15642.50311
+   },
+   {
+    "threads": 4,
+    "seconds": 10.00031954,
+    "reads": 255694,
+    "writes": 0,
+    "read_qps": 25568.58298,
+    "write_ops": 0,
+    "total_ops": 25568.58298
+   },
+   {
+    "threads": 6,
+    "seconds": 10.00052483,
+    "reads": 333625,
+    "writes": 0,
+    "read_qps": 33360.74913,
+    "write_ops": 0,
+    "total_ops": 33360.74913
+   },
+   {
+    "threads": 8,
+    "seconds": 10.00057639,
+    "reads": 382303,
+    "writes": 0,
+    "read_qps": 38228.09659,
+    "write_ops": 0,
+    "total_ops": 38228.09659
+   },
+   {
+    "threads": 10,
+    "seconds": 10.00064482,
+    "reads": 471008,
+    "writes": 0,
+    "read_qps": 47097.76305,
+    "write_ops": 0,
+    "total_ops": 47097.76305
+   },
+   {
+    "threads": 12,
+    "seconds": 10.00070886,
+    "reads": 512723,
+    "writes": 0,
+    "read_qps": 51268.66576,
+    "write_ops": 0,
+    "total_ops": 51268.66576
+   },
+   {
+    "threads": 16,
+    "seconds": 10.00358128,
+    "reads": 298687,
+    "writes": 0,
+    "read_qps": 29858.00701,
+    "write_ops": 0,
+    "total_ops": 29858.00701
+   }
+  ],
+  "index_size_end": 1000000
+ }
+}

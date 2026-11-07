@@ -1,0 +1,366 @@
+{
+ "suite": "vs_hnswlib",
+ "task": "sift_faiss_M16_efc200",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T18:14:07Z",
+ "command": [
+  "/home/orels/nexus_venv/bin/python",
+  "/mnt/c/Users/Orels/Projects/Vector_Database_Engine/scripts/bench_faiss.py",
+  "--base",
+  "/home/orels/nexus_data/sift/sift_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/sift/sift_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/sift/sift_groundtruth.ivecs",
+  "--metric",
+  "l2",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--ef",
+  "10,16,24,32,48,64,96,128,192,256,384,512,768",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/vs_hnswlib__sift_faiss_M16_efc200.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "sift",
+ "dataset_manifest": {
+  "dataset": "sift",
+  "source": "ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz",
+  "metric": "l2",
+  "normalized": false,
+  "files": {
+   "base": {
+    "name": "sift_base.fvecs",
+    "sha256": "21f66e2975057b5728ba56de1c825bac4f4d89d596609ae985741c6242631816",
+    "bytes": 516000000
+   },
+   "query": {
+    "name": "sift_query.fvecs",
+    "sha256": "f7fc9be140accdfd64116c2fa2365ecdb69b8f084970c6b0532db5ff79ac8fdc",
+    "bytes": 5160000
+   },
+   "gt": {
+    "name": "sift_groundtruth.ivecs",
+    "sha256": "2b71de0a8d5a83e6a84eec3e23fb8b611d8801dd9b3a6cd62f070ab65ea65f4f",
+    "bytes": 4040000
+   },
+   "learn": {
+    "name": "sift_learn.fvecs",
+    "sha256": "331bc82b6a0e89465776a3ba0c2113e0bd0cceaa014ec3ed639bc8b981af72ea",
+    "bytes": 51600000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:01Z"
+ },
+ "engine": "faiss",
+ "index": "IndexHNSWFlat",
+ "M": 16,
+ "efc": 200,
+ "wall_seconds": 429.478,
+ "result": {
+  "meta": {
+   "engine": "faiss",
+   "faiss_version": "1.15.1",
+   "python": "3.14.4",
+   "omp_threads": 1,
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "caveat": "per-query calls through the Python binding; QPS includes binding overhead",
+   "args": {
+    "base": "/home/orels/nexus_data/sift/sift_base.fvecs",
+    "query": "/home/orels/nexus_data/sift/sift_query.fvecs",
+    "gt": "/home/orels/nexus_data/sift/sift_groundtruth.ivecs",
+    "out": "/home/orels/nexus_bench_build/work/vs_hnswlib__sift_faiss_M16_efc200.tmp.json",
+    "metric": "l2",
+    "M": 16,
+    "efc": 200,
+    "ef": "10,16,24,32,48,64,96,128,192,256,384,512,768",
+    "k": 10,
+    "repeats": 1,
+    "pin": 2
+   }
+  },
+  "dataset": {
+   "base_rows": 1000000,
+   "dim": 128,
+   "queries": 10000
+  },
+  "builds": [
+   {
+    "build": 0,
+    "build_seconds": 342.25660335299835,
+    "points": [
+     {
+      "ef": 10,
+      "rerank": 0,
+      "recall": 0.71569,
+      "qps": 30183.475403384105,
+      "latency": {
+       "mean_us": 33.130710981276934,
+       "p50_us": 31.462001061299816,
+       "p95_us": 48.417001380585134,
+       "p99_us": 62.234001234173775,
+       "min_us": 12.556000001495704,
+       "max_us": 290.8320020651445,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.80754,
+      "qps": 23198.234357022273,
+      "latency": {
+       "mean_us": 43.10672892643197,
+       "p50_us": 41.46599894738756,
+       "p95_us": 59.21800038777292,
+       "p99_us": 74.86199683626182,
+       "min_us": 16.07100057299249,
+       "max_us": 1390.484998410102,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 24,
+      "rerank": 0,
+      "recall": 0.8735,
+      "qps": 17782.58479955232,
+      "latency": {
+       "mean_us": 56.23479439418588,
+       "p50_us": 55.11999916052446,
+       "p95_us": 74.6789992263075,
+       "p99_us": 90.32500020111911,
+       "min_us": 21.69800063711591,
+       "max_us": 396.8349992646836,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.9108,
+      "qps": 14339.183831190207,
+      "latency": {
+       "mean_us": 69.73897620482603,
+       "p50_us": 68.97999992361292,
+       "p95_us": 90.98800001083873,
+       "p99_us": 113.30000052112155,
+       "min_us": 23.357002646662295,
+       "max_us": 320.2679981768597,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 48,
+      "rerank": 0,
+      "recall": 0.94849,
+      "qps": 10379.452027692196,
+      "latency": {
+       "mean_us": 96.34419980284292,
+       "p50_us": 96.59200077294372,
+       "p95_us": 121.03300105081871,
+       "p99_us": 145.88599879061803,
+       "min_us": 34.75999983493239,
+       "max_us": 375.3540004254319,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.96746,
+      "qps": 8126.085406357771,
+      "latency": {
+       "mean_us": 123.06048361460853,
+       "p50_us": 123.93799988785759,
+       "p95_us": 152.79299987014383,
+       "p99_us": 186.26699966262095,
+       "min_us": 42.15700027998537,
+       "max_us": 1222.6510007167235,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 96,
+      "rerank": 0,
+      "recall": 0.98346,
+      "qps": 5135.028826722277,
+      "latency": {
+       "mean_us": 194.74087366288586,
+       "p50_us": 198.63199850078672,
+       "p95_us": 238.22900038794614,
+       "p99_us": 262.0609993755352,
+       "min_us": 66.37700062128715,
+       "max_us": 425.0009988027159,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 128,
+      "rerank": 0,
+      "recall": 0.9904,
+      "qps": 4452.721303256725,
+      "latency": {
+       "mean_us": 224.5817629027442,
+       "p50_us": 229.79099958320148,
+       "p95_us": 272.60000206297264,
+       "p99_us": 312.8989992546849,
+       "min_us": 79.5499981904868,
+       "max_us": 552.1740022231825,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 192,
+      "rerank": 0,
+      "recall": 0.99548,
+      "qps": 3062.045952385631,
+      "latency": {
+       "mean_us": 326.5790309975273,
+       "p50_us": 333.83999834768474,
+       "p95_us": 404.11800000583753,
+       "p99_us": 462.84800191642717,
+       "min_us": 118.54300100822002,
+       "max_us": 909.9609997065272,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 256,
+      "rerank": 0,
+      "recall": 0.99737,
+      "qps": 2364.4288291155217,
+      "latency": {
+       "mean_us": 422.93512398682645,
+       "p50_us": 435.73599759838544,
+       "p95_us": 509.9730005895253,
+       "p99_us": 564.5439996442292,
+       "min_us": 156.178000906948,
+       "max_us": 775.1560005999636,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 384,
+      "rerank": 0,
+      "recall": 0.99874,
+      "qps": 1597.3434550038198,
+      "latency": {
+       "mean_us": 626.0394387114502,
+       "p50_us": 642.985000013141,
+       "p95_us": 761.9249990966637,
+       "p99_us": 846.7709994874895,
+       "min_us": 230.97600205801427,
+       "max_us": 2213.1959995022044,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 512,
+      "rerank": 0,
+      "recall": 0.99905,
+      "qps": 1211.6092236646589,
+      "latency": {
+       "mean_us": 825.3486193967547,
+       "p50_us": 850.3520002705045,
+       "p95_us": 994.2659999069292,
+       "p99_us": 1071.0169990488794,
+       "min_us": 304.67400210909545,
+       "max_us": 1357.4919976235833,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 768,
+      "rerank": 0,
+      "recall": 0.99928,
+      "qps": 794.1087019952149,
+      "latency": {
+       "mean_us": 1259.2734439094784,
+       "p50_us": 1291.685999603942,
+       "p95_us": 1510.5019992915913,
+       "p99_us": 1624.0670011029579,
+       "min_us": 516.5709990251344,
+       "max_us": 2173.8859977631364,
+       "samples": 10000
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

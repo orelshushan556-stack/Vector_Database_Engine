@@ -1,0 +1,502 @@
+{
+ "suite": "distance_computations",
+ "task": "glove100_hnswlib_hnsw",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:22:29Z",
+ "command": [
+  "/home/orels/nexus_bench_build/count/hnswlib_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+  "--metric",
+  "ip",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "0",
+  "--ef",
+  "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+  "--load",
+  "/home/orels/nexus_bench_build/work/snapshots/glove100_hnswlib_hnsw_M16_efc200.hnswlib",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/distance_computations__glove100_hnswlib_hnsw.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "glove100",
+ "dataset_manifest": {
+  "dataset": "glove100",
+  "source": "http://ann-benchmarks.com/glove-100-angular.hdf5",
+  "metric": "angular",
+  "normalized": true,
+  "files": {
+   "base": {
+    "name": "glove100_base.fvecs",
+    "sha256": "108897c581a94a894bed4529b9dcceec8dfe6020c4c3a4bbef5f32e4649eaa17",
+    "bytes": 478139656
+   },
+   "query": {
+    "name": "glove100_query.fvecs",
+    "sha256": "5f9830aff51d9e336487e1d68e8fd0428234145a0f7ae26f074550e056a73642",
+    "bytes": 4040000
+   },
+   "gt": {
+    "name": "glove100_groundtruth.ivecs",
+    "sha256": "9f9723a455b26db1378ae4c0b9e4389665a9b8769c4287630eaa6cc350f199eb",
+    "bytes": 4040000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:49Z"
+ },
+ "engine": "hnswlib",
+ "index": "hnswlib",
+ "M": 16,
+ "efc": 200,
+ "variant": "count",
+ "builds": 1,
+ "repeats": 0,
+ "wall_seconds": 66.088,
+ "result": {
+  "meta": {
+   "engine": "hnswlib",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG NEXUS_COUNT_DISTANCES",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+    "query": "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+    "gt": "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+    "metric": "ip",
+    "M": "16",
+    "efc": "200",
+    "ef": "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+    "k": "10",
+    "builds": "1",
+    "repeats": "0",
+    "load": "/home/orels/nexus_bench_build/work/snapshots/glove100_hnswlib_hnsw_M16_efc200.hnswlib"
+   }
+  },
+  "dataset": {
+   "base_rows": 1183514,
+   "dim": 100,
+   "queries": 10000
+  },
+  "rss_start_bytes": 4042752,
+  "rss_after_load_bytes": 485867520,
+  "builds": [
+   {
+    "build": 0,
+    "seed": 100,
+    "build_seconds": -1,
+    "train_seconds": 0,
+    "load_seconds": 0.655270152,
+    "save_seconds": -1,
+    "snapshot_bytes": 0,
+    "rss_before_build_bytes": 486080512,
+    "rss_after_build_bytes": 1245184000,
+    "index_rss_delta_bytes": 759103488,
+    "peak_rss_bytes": 1245184000,
+    "points": [
+     {
+      "ef": 10,
+      "rerank": 0,
+      "recall": 0.46946,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 505.2007,
+       "quantized": 0,
+       "total": 505.2007
+      }
+     },
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.55831,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 662.009,
+       "quantized": 0,
+       "total": 662.009
+      }
+     },
+     {
+      "ef": 24,
+      "rerank": 0,
+      "recall": 0.62814,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 849.2299,
+       "quantized": 0,
+       "total": 849.2299
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.67111,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 1020.4746,
+       "quantized": 0,
+       "total": 1020.4746
+      }
+     },
+     {
+      "ef": 48,
+      "rerank": 0,
+      "recall": 0.72934,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 1347.9946,
+       "quantized": 0,
+       "total": 1347.9946
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.76299,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 1655.2803,
+       "quantized": 0,
+       "total": 1655.2803
+      }
+     },
+     {
+      "ef": 96,
+      "rerank": 0,
+      "recall": 0.80654,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 2248.6426,
+       "quantized": 0,
+       "total": 2248.6426
+      }
+     },
+     {
+      "ef": 128,
+      "rerank": 0,
+      "recall": 0.83196,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 2810.9014,
+       "quantized": 0,
+       "total": 2810.9014
+      }
+     },
+     {
+      "ef": 192,
+      "rerank": 0,
+      "recall": 0.86325,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 3899.4279,
+       "quantized": 0,
+       "total": 3899.4279
+      }
+     },
+     {
+      "ef": 256,
+      "rerank": 0,
+      "recall": 0.8843,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 4950.9001,
+       "quantized": 0,
+       "total": 4950.9001
+      }
+     },
+     {
+      "ef": 384,
+      "rerank": 0,
+      "recall": 0.90952,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 6978.3548,
+       "quantized": 0,
+       "total": 6978.3548
+      }
+     },
+     {
+      "ef": 512,
+      "rerank": 0,
+      "recall": 0.92563,
+      "recall_min_query": 0,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 8940.0402,
+       "quantized": 0,
+       "total": 8940.0402
+      }
+     },
+     {
+      "ef": 768,
+      "rerank": 0,
+      "recall": 0.94453,
+      "recall_min_query": 0.1,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 12724.6865,
+       "quantized": 0,
+       "total": 12724.6865
+      }
+     },
+     {
+      "ef": 1024,
+      "rerank": 0,
+      "recall": 0.95561,
+      "recall_min_query": 0.1,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 16375.2079,
+       "quantized": 0,
+       "total": 16375.2079
+      }
+     },
+     {
+      "ef": 1536,
+      "rerank": 0,
+      "recall": 0.96938,
+      "recall_min_query": 0.2,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 23401.2857,
+       "quantized": 0,
+       "total": 23401.2857
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

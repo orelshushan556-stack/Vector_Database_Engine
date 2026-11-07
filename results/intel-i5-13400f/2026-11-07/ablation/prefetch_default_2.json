@@ -1,0 +1,274 @@
+{
+ "suite": "ablation",
+ "task": "prefetch_default_2",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T18:33:22Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/sift/sift_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/sift/sift_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/sift/sift_groundtruth.ivecs",
+  "--metric",
+  "l2",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "2",
+  "--index",
+  "hnsw",
+  "--ef",
+  "16,32,64,128,256",
+  "--load",
+  "/home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/ablation__prefetch_default_2.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "b48c33bf121fbab99d1b8612cae038bd4d710cb4",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "sift",
+ "dataset_manifest": {
+  "dataset": "sift",
+  "source": "ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz",
+  "metric": "l2",
+  "normalized": false,
+  "files": {
+   "base": {
+    "name": "sift_base.fvecs",
+    "sha256": "21f66e2975057b5728ba56de1c825bac4f4d89d596609ae985741c6242631816",
+    "bytes": 516000000
+   },
+   "query": {
+    "name": "sift_query.fvecs",
+    "sha256": "f7fc9be140accdfd64116c2fa2365ecdb69b8f084970c6b0532db5ff79ac8fdc",
+    "bytes": 5160000
+   },
+   "gt": {
+    "name": "sift_groundtruth.ivecs",
+    "sha256": "2b71de0a8d5a83e6a84eec3e23fb8b611d8801dd9b3a6cd62f070ab65ea65f4f",
+    "bytes": 4040000
+   },
+   "learn": {
+    "name": "sift_learn.fvecs",
+    "sha256": "331bc82b6a0e89465776a3ba0c2113e0bd0cceaa014ec3ed639bc8b981af72ea",
+    "bytes": 51600000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:01Z"
+ },
+ "engine": "nexus",
+ "index": "hnsw",
+ "M": 16,
+ "efc": 200,
+ "variant": "default",
+ "builds": 1,
+ "repeats": 2,
+ "wall_seconds": 25.61,
+ "result": {
+  "meta": {
+   "engine": "nexus",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/sift/sift_base.fvecs",
+    "query": "/home/orels/nexus_data/sift/sift_query.fvecs",
+    "gt": "/home/orels/nexus_data/sift/sift_groundtruth.ivecs",
+    "metric": "l2",
+    "index": "hnsw",
+    "M": "16",
+    "efc": "200",
+    "ef": "16,32,64,128,256",
+    "k": "10",
+    "builds": "1",
+    "repeats": "2",
+    "load": "/home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus"
+   }
+  },
+  "dataset": {
+   "base_rows": 1000000,
+   "dim": 128,
+   "queries": 10000
+  },
+  "rss_start_bytes": 4206592,
+  "rss_after_load_bytes": 525750272,
+  "builds": [
+   {
+    "build": 0,
+    "build_seconds": -1,
+    "train_seconds": 0,
+    "load_seconds": 0.885066981,
+    "save_seconds": -1,
+    "snapshot_bytes": 0,
+    "rss_before_build_bytes": 525950976,
+    "rss_after_build_bytes": 1245110272,
+    "index_rss_delta_bytes": 719159296,
+    "peak_rss_bytes": 1897017344,
+    "points": [
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.8224,
+      "recall_min_query": 0,
+      "qps": 24165.17051,
+      "latency": {
+       "mean_us": 41.3818723,
+       "p50_us": 39.564,
+       "p95_us": 54.698,
+       "p99_us": 65.907,
+       "min_us": 12.816,
+       "max_us": 16274.581,
+       "samples": 20000
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.91497,
+      "recall_min_query": 0.1,
+      "qps": 14880.89033,
+      "latency": {
+       "mean_us": 67.2002802,
+       "p50_us": 65.93,
+       "p95_us": 84.99,
+       "p99_us": 105.994,
+       "min_us": 17.411,
+       "max_us": 21079.617,
+       "samples": 20000
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.96762,
+      "recall_min_query": 0.4,
+      "qps": 8587.628533,
+      "latency": {
+       "mean_us": 116.4465831,
+       "p50_us": 117.39,
+       "p95_us": 144.16,
+       "p99_us": 175.854,
+       "min_us": 37.76,
+       "max_us": 15672.24,
+       "samples": 20000
+      }
+     },
+     {
+      "ef": 128,
+      "rerank": 0,
+      "recall": 0.99066,
+      "recall_min_query": 0.4,
+      "qps": 4767.643499,
+      "latency": {
+       "mean_us": 209.7472263,
+       "p50_us": 213.935,
+       "p95_us": 270.58,
+       "p99_us": 320.955,
+       "min_us": 70.053,
+       "max_us": 1610.736,
+       "samples": 20000
+      }
+     },
+     {
+      "ef": 256,
+      "rerank": 0,
+      "recall": 0.99772,
+      "recall_min_query": 0.7,
+      "qps": 2653.527685,
+      "latency": {
+       "mean_us": 376.8568181,
+       "p50_us": 388.672,
+       "p95_us": 476.431,
+       "p99_us": 535.407,
+       "min_us": 124.809,
+       "max_us": 1160.131,
+       "samples": 20000
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

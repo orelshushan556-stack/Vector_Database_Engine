@@ -1,0 +1,378 @@
+{
+ "suite": "distance_computations",
+ "task": "siftsmall_hnswlib_hnsw",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:22:30Z",
+ "command": [
+  "/home/orels/nexus_bench_build/count/hnswlib_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/siftsmall/siftsmall_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/siftsmall/siftsmall_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs",
+  "--metric",
+  "l2",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "0",
+  "--ef",
+  "10,16,24,32,48,64,100,150,200",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/distance_computations__siftsmall_hnswlib_hnsw.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "siftsmall",
+ "dataset_manifest": {
+  "dataset": "siftsmall",
+  "source": "ftp://ftp.irisa.fr/local/texmex/corpus/siftsmall.tar.gz",
+  "metric": "l2",
+  "normalized": false,
+  "files": {
+   "base": {
+    "name": "siftsmall_base.fvecs",
+    "sha256": "1e90414a3254361aba48a0d58e461f7661fb135dabb3da985290e94de8f60fe0",
+    "bytes": 5160000
+   },
+   "query": {
+    "name": "siftsmall_query.fvecs",
+    "sha256": "095af38bda2741be721447ba97e9286fa918ece946be92a9ae133276eddc1a10",
+    "bytes": 51600
+   },
+   "gt": {
+    "name": "siftsmall_groundtruth.ivecs",
+    "sha256": "b0717bf276111a166f14dcc2653fd04465b2afd6d34c72be641b622cf99f95ae",
+    "bytes": 40400
+   },
+   "learn": {
+    "name": "siftsmall_learn.fvecs",
+    "sha256": "8e232080ad8b4b07024c51b9b1933346d62e70fa2560ad184e697d40277a9a15",
+    "bytes": 12900000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:22:34Z"
+ },
+ "engine": "hnswlib",
+ "index": "hnswlib",
+ "M": 16,
+ "efc": 200,
+ "variant": "count",
+ "builds": 1,
+ "repeats": 0,
+ "wall_seconds": 0.683,
+ "result": {
+  "meta": {
+   "engine": "hnswlib",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG NEXUS_COUNT_DISTANCES",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/siftsmall/siftsmall_base.fvecs",
+    "query": "/home/orels/nexus_data/siftsmall/siftsmall_query.fvecs",
+    "gt": "/home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs",
+    "metric": "l2",
+    "M": "16",
+    "efc": "200",
+    "ef": "10,16,24,32,48,64,100,150,200",
+    "k": "10",
+    "builds": "1",
+    "repeats": "0"
+   }
+  },
+  "dataset": {
+   "base_rows": 10000,
+   "dim": 128,
+   "queries": 100
+  },
+  "rss_start_bytes": 3997696,
+  "rss_after_load_bytes": 11300864,
+  "builds": [
+   {
+    "build": 0,
+    "seed": 100,
+    "build_seconds": 0.655038938,
+    "train_seconds": 0,
+    "load_seconds": -1,
+    "save_seconds": -1,
+    "snapshot_bytes": 0,
+    "rss_before_build_bytes": 11497472,
+    "rss_after_build_bytes": 20938752,
+    "index_rss_delta_bytes": 9441280,
+    "peak_rss_bytes": 20938752,
+    "points": [
+     {
+      "ef": 10,
+      "rerank": 0,
+      "recall": 0.934,
+      "recall_min_query": 0.6,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 217.92,
+       "quantized": 0,
+       "total": 217.92
+      }
+     },
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.963,
+      "recall_min_query": 0.7,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 278.33,
+       "quantized": 0,
+       "total": 278.33
+      }
+     },
+     {
+      "ef": 24,
+      "rerank": 0,
+      "recall": 0.987,
+      "recall_min_query": 0.8,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 356.56,
+       "quantized": 0,
+       "total": 356.56
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.993,
+      "recall_min_query": 0.8,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 429.61,
+       "quantized": 0,
+       "total": 429.61
+      }
+     },
+     {
+      "ef": 48,
+      "rerank": 0,
+      "recall": 0.996,
+      "recall_min_query": 0.8,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 561.11,
+       "quantized": 0,
+       "total": 561.11
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.997,
+      "recall_min_query": 0.8,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 679.07,
+       "quantized": 0,
+       "total": 679.07
+      }
+     },
+     {
+      "ef": 100,
+      "rerank": 0,
+      "recall": 0.998,
+      "recall_min_query": 0.8,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 903.32,
+       "quantized": 0,
+       "total": 903.32
+      }
+     },
+     {
+      "ef": 150,
+      "rerank": 0,
+      "recall": 1,
+      "recall_min_query": 1,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 1163.2,
+       "quantized": 0,
+       "total": 1163.2
+      }
+     },
+     {
+      "ef": 200,
+      "rerank": 0,
+      "recall": 1,
+      "recall_min_query": 1,
+      "qps": 0,
+      "latency": {
+       "mean_us": 0,
+       "p50_us": 0,
+       "p95_us": 0,
+       "p99_us": 0,
+       "min_us": 0,
+       "max_us": 0,
+       "samples": 0
+      },
+      "distances_per_query": {
+       "exact": 1387.41,
+       "quantized": 0,
+       "total": 1387.41
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

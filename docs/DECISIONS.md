@@ -90,3 +90,18 @@ reason for each. Newest last.
     with `git worktree`, and "after" is the benchmark-branch HEAD. Both are built by the same
     harness source (`benchmarks/fix_compare`). Commit `2bf962f` also changed SQ8 re-ranking, so
     the SQ8 comparison mixes both changes; the headline uses the FP32 `HNSWIndex`.
+16. **A slow window at the start of the main pass was found and re-measured.** The drift probes
+    (the same saved SIFT-10K graph, timed at ef 16/64) ran at about half speed at the start of the
+    main pass (12:39 UTC, ef 64: ~15.5k QPS) compared with its end (20:24 UTC, ~34.5k QPS).
+    Recall was identical. The QPS of `recall_qps`, which started 12:45 UTC, matched the end probes
+    within about 3%, so the slow period was confined to the first few minutes. The cause was not
+    identified; the run started immediately after compiling four build variants and the
+    before/after worktree. The suites that ran in or right after that window (`sanity_start`,
+    `before_after_fix`, `crash_recovery`, `write_path`) were moved, unchanged, to
+    `results/<id>/<date>/superseded_slow_start/` and re-run in a follow-up pass that starts and
+    ends with its own drift probes. Published numbers use the follow-up pass; the superseded
+    files are kept so the finding can be checked.
+17. **More prefetch pairs and a second concurrency sweep.** Prefetch on/off varied a lot from pair
+    to pair after two pairs, so the follow-up pass adds three more interleaved pairs (five in all).
+    The 16-thread drop in the read-only concurrency sweep was checked with a second, longer sweep
+    (10 s per point); the chart shows the mean of the sweeps, and both are in the raw data.

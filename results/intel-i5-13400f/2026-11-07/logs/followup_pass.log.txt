@@ -1,0 +1,83 @@
+[20:26:02] machine_id=intel-i5-13400f runtime=wsl2 cpu=13th Gen Intel(R) Core(TM) i5-13400F pin=2
+[20:26:02] === suite sanity_start
+[20:26:02] run sanity_start/probe_0: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_start__probe_0.tmp.json
+[20:26:02]   wrote results/intel-i5-13400f/2026-11-07/sanity_start/probe_0.json
+[20:26:02] run sanity_start/probe_1: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_start__probe_1.tmp.json
+[20:26:02]   wrote results/intel-i5-13400f/2026-11-07/sanity_start/probe_1.json
+[20:26:02] run sanity_start/probe_2: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_start__probe_2.tmp.json
+[20:26:02]   wrote results/intel-i5-13400f/2026-11-07/sanity_start/probe_2.json
+[20:26:02] === suite before_after_fix
+[20:26:03] run before_after_fix/before_hnsw: fix_bench --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --index hnsw --builds 10 --ef 10,16,32,64,100 --repeats 5 --pin 2 --out /home/orels/nexus_bench_build/work/before_after_fix__before_hnsw.tmp.json
+[20:26:10]   wrote results/intel-i5-13400f/2026-11-07/before_after_fix/before_hnsw.json
+[20:26:10] run before_after_fix/before_sq8: fix_bench --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --index sq8 --builds 10 --ef 10,16,32,64,100 --repeats 5 --pin 2 --out /home/orels/nexus_bench_build/work/before_after_fix__before_sq8.tmp.json
+[20:26:19]   wrote results/intel-i5-13400f/2026-11-07/before_after_fix/before_sq8.json
+[20:26:19] run before_after_fix/after_hnsw: fix_bench --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --index hnsw --builds 10 --ef 10,16,32,64,100 --repeats 5 --pin 2 --out /home/orels/nexus_bench_build/work/before_after_fix__after_hnsw.tmp.json
+[20:26:29]   wrote results/intel-i5-13400f/2026-11-07/before_after_fix/after_hnsw.json
+[20:26:29] run before_after_fix/after_sq8: fix_bench --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --index sq8 --builds 10 --ef 10,16,32,64,100 --repeats 5 --pin 2 --out /home/orels/nexus_bench_build/work/before_after_fix__after_sq8.tmp.json
+[20:26:40]   wrote results/intel-i5-13400f/2026-11-07/before_after_fix/after_sq8.json
+[20:26:40] === suite crash_recovery
+[20:26:40]   crash cycle 0/500: acked=79 ok=True
+[20:26:48]   crash cycle 25/500: acked=1681 ok=True
+[20:26:55]   crash cycle 50/500: acked=3101 ok=True
+[20:27:05]   crash cycle 75/500: acked=5196 ok=True
+[20:27:13]   crash cycle 100/500: acked=6976 ok=True
+[20:27:21]   crash cycle 125/500: acked=8731 ok=True
+[20:27:28]   crash cycle 150/500: acked=10137 ok=True
+[20:27:37]   crash cycle 175/500: acked=11859 ok=True
+[20:27:45]   crash cycle 200/500: acked=13571 ok=True
+[20:27:54]   crash cycle 225/500: acked=15370 ok=True
+[20:28:02]   crash cycle 250/500: acked=17066 ok=True
+[20:28:11]   crash cycle 275/500: acked=18727 ok=True
+[20:28:20]   crash cycle 300/500: acked=20526 ok=True
+[20:28:28]   crash cycle 325/500: acked=22095 ok=True
+[20:28:37]   crash cycle 350/500: acked=23980 ok=True
+[20:28:47]   crash cycle 375/500: acked=25796 ok=True
+[20:28:55]   crash cycle 400/500: acked=27368 ok=True
+[20:29:03]   crash cycle 425/500: acked=28800 ok=True
+[20:29:11]   crash cycle 450/500: acked=30402 ok=True
+[20:29:19]   crash cycle 475/500: acked=31780 ok=True
+[20:29:27]   wrote results/intel-i5-13400f/2026-11-07/crash_recovery/kill_cycles.json
+[20:29:27] run crash_recovery/replay_time: nexus_bench wal-replay --dir /home/orels/nexus_bench_build/work/replay --records 10000,100000,1000000 --hnsw-max 100000 --repeats 3 --out /home/orels/nexus_bench_build/work/crash_recovery__replay_time.tmp.json
+[20:29:59]   wrote results/intel-i5-13400f/2026-11-07/crash_recovery/replay_time.json
+[20:29:59] === suite write_path
+[20:29:59] run write_path/default_flat: nexus_bench write-path --base /home/orels/nexus_data/sift/sift_base.fvecs --n 10000 --index flat --dir /home/orels/nexus_bench_build/work/write_path --pin 2 --out /home/orels/nexus_bench_build/work/write_path__default_flat.tmp.json
+[20:30:45]   wrote results/intel-i5-13400f/2026-11-07/write_path/default_flat.json
+[20:30:45] run write_path/default_hnsw: nexus_bench write-path --base /home/orels/nexus_data/sift/sift_base.fvecs --n 10000 --index hnsw --dir /home/orels/nexus_bench_build/work/write_path --pin 2 --out /home/orels/nexus_bench_build/work/write_path__default_hnsw.tmp.json
+[20:31:33]   wrote results/intel-i5-13400f/2026-11-07/write_path/default_hnsw.json
+[20:31:33] run write_path/nofsync_flat: nexus_bench write-path --base /home/orels/nexus_data/sift/sift_base.fvecs --n 10000 --index flat --dir /home/orels/nexus_bench_build/work/write_path --pin 2 --out /home/orels/nexus_bench_build/work/write_path__nofsync_flat.tmp.json
+[20:31:33]   wrote results/intel-i5-13400f/2026-11-07/write_path/nofsync_flat.json
+[20:31:33] run write_path/nofsync_hnsw: nexus_bench write-path --base /home/orels/nexus_data/sift/sift_base.fvecs --n 10000 --index hnsw --dir /home/orels/nexus_bench_build/work/write_path --pin 2 --out /home/orels/nexus_bench_build/work/write_path__nofsync_hnsw.tmp.json
+[20:31:35]   wrote results/intel-i5-13400f/2026-11-07/write_path/nofsync_hnsw.json
+[20:31:35] === suite concurrency
+[20:31:35] skip concurrency/read_only (exists)
+[20:31:35] skip concurrency/mix_90_10 (exists)
+[20:31:35] run concurrency/read_only_repeat: nexus_bench concurrency --snapshot /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --query /home/orels/nexus_data/sift/sift_query.fvecs --threads 1,2,4,6,8,10,12,16 --seconds 10 --ef 64 --wal /home/orels/nexus_bench_build/work/concurrency.wal --write-frac 0.0 --out /home/orels/nexus_bench_build/work/concurrency__read_only_repeat.tmp.json
+[20:32:56]   wrote results/intel-i5-13400f/2026-11-07/concurrency/read_only_repeat.json
+[20:32:56] === suite ablation
+[20:32:56] skip ablation/simd_kernels (exists)
+[20:32:56] skip ablation/prefetch_default_0 (exists)
+[20:32:56] skip ablation/prefetch_noprefetch_0 (exists)
+[20:32:56] skip ablation/prefetch_default_1 (exists)
+[20:32:56] skip ablation/prefetch_noprefetch_1 (exists)
+[20:32:56] run ablation/prefetch_default_2: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_default_2.tmp.json
+[20:33:22]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_default_2.json
+[20:33:22] run ablation/prefetch_noprefetch_2: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_noprefetch_2.tmp.json
+[20:33:49]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_noprefetch_2.json
+[20:33:49] run ablation/prefetch_default_3: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_default_3.tmp.json
+[20:34:14]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_default_3.json
+[20:34:14] run ablation/prefetch_noprefetch_3: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_noprefetch_3.tmp.json
+[20:34:42]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_noprefetch_3.json
+[20:34:42] run ablation/prefetch_default_4: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_default_4.tmp.json
+[20:35:07]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_default_4.json
+[20:35:07] run ablation/prefetch_noprefetch_4: nexus_bench ann --base /home/orels/nexus_data/sift/sift_base.fvecs --query /home/orels/nexus_data/sift/sift_query.fvecs --gt /home/orels/nexus_data/sift/sift_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 2 --index hnsw --ef 16,32,64,128,256 --load /home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus --pin 2 --out /home/orels/nexus_bench_build/work/ablation__prefetch_noprefetch_4.tmp.json
+[20:35:34]   wrote results/intel-i5-13400f/2026-11-07/ablation/prefetch_noprefetch_4.json
+[20:35:34] skip ablation/rerank_sweep (exists)
+[20:35:34] === suite sanity_end
+[20:35:34] run sanity_end/probe_0: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_end__probe_0.tmp.json
+[20:35:35]   wrote results/intel-i5-13400f/2026-11-07/sanity_end/probe_0.json
+[20:35:35] run sanity_end/probe_1: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_end__probe_1.tmp.json
+[20:35:35]   wrote results/intel-i5-13400f/2026-11-07/sanity_end/probe_1.json
+[20:35:35] run sanity_end/probe_2: nexus_bench ann --base /home/orels/nexus_data/siftsmall/siftsmall_base.fvecs --query /home/orels/nexus_data/siftsmall/siftsmall_query.fvecs --gt /home/orels/nexus_data/siftsmall/siftsmall_groundtruth.ivecs --metric l2 --M 16 --efc 200 --k 10 --builds 1 --repeats 50 --index hnsw --ef 16,64 --load /home/orels/nexus_bench_build/work/snapshots/sanity_siftsmall_hnsw.nexus --pin 2 --out /home/orels/nexus_bench_build/work/sanity_end__probe_2.tmp.json
+[20:35:35]   wrote results/intel-i5-13400f/2026-11-07/sanity_end/probe_2.json
+[20:35:35] all suites finished
+RUN_EXIT=0
