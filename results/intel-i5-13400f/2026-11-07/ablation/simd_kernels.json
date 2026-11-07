@@ -1,0 +1,177 @@
+{
+ "suite": "ablation",
+ "task": "simd_kernels",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:24:33Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "simd",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/ablation__simd_kernels.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "wall_seconds": 35.127,
+ "result": {
+  "compiler": "gcc 15.2.0",
+  "build_flags": "avx2 fma NDEBUG",
+  "pinned_cpu": 2,
+  "pin_ok": true,
+  "trials": 7,
+  "note": "working set of 256 vectors per dim (<= 1 MiB, cache resident); median of trials",
+  "results": [
+   {
+    "dim": 32,
+    "l2_scalar_ns": 7.54028666,
+    "l2_avx2_ns": 2.671999007,
+    "dot_scalar_ns": 7.192441344,
+    "dot_avx2_ns": 2.694916934,
+    "cos_scalar_ns": 22.42236567,
+    "cos_avx2_ns": 4.575766742
+   },
+   {
+    "dim": 64,
+    "l2_scalar_ns": 15.14188814,
+    "l2_avx2_ns": 3.116789162,
+    "dot_scalar_ns": 14.64418793,
+    "dot_avx2_ns": 3.095571101,
+    "cos_scalar_ns": 43.6396513,
+    "cos_avx2_ns": 5.622224867
+   },
+   {
+    "dim": 96,
+    "l2_scalar_ns": 23.43933082,
+    "l2_avx2_ns": 3.869096637,
+    "dot_scalar_ns": 22.43827248,
+    "dot_avx2_ns": 3.592452109,
+    "cos_scalar_ns": 69.67118359,
+    "cos_avx2_ns": 7.027590752
+   },
+   {
+    "dim": 128,
+    "l2_scalar_ns": 34.99091387,
+    "l2_avx2_ns": 4.784994721,
+    "dot_scalar_ns": 32.49661398,
+    "dot_avx2_ns": 4.599720836,
+    "cos_scalar_ns": 98.78333664,
+    "cos_avx2_ns": 8.722009063
+   },
+   {
+    "dim": 256,
+    "l2_scalar_ns": 79.76138973,
+    "l2_avx2_ns": 8.861883283,
+    "dot_scalar_ns": 76.65306187,
+    "dot_avx2_ns": 8.805835962,
+    "cos_scalar_ns": 237.4531364,
+    "cos_avx2_ns": 15.43024945
+   },
+   {
+    "dim": 384,
+    "l2_scalar_ns": 134.7080173,
+    "l2_avx2_ns": 13.11622858,
+    "dot_scalar_ns": 132.4390945,
+    "dot_avx2_ns": 12.85390973,
+    "cos_scalar_ns": 404.2289734,
+    "cos_avx2_ns": 23.40318942
+   },
+   {
+    "dim": 512,
+    "l2_scalar_ns": 197.5434723,
+    "l2_avx2_ns": 17.34161639,
+    "dot_scalar_ns": 189.7504463,
+    "dot_avx2_ns": 17.00098586,
+    "cos_scalar_ns": 574.9535828,
+    "cos_avx2_ns": 31.85785532
+   },
+   {
+    "dim": 768,
+    "l2_scalar_ns": 303.7084122,
+    "l2_avx2_ns": 25.84274578,
+    "dot_scalar_ns": 301.2546234,
+    "dot_avx2_ns": 25.38347864,
+    "cos_scalar_ns": 911.2573242,
+    "cos_avx2_ns": 47.50707197
+   },
+   {
+    "dim": 1024,
+    "l2_scalar_ns": 420.4887238,
+    "l2_avx2_ns": 38.11277866,
+    "dot_scalar_ns": 415.3855972,
+    "dot_avx2_ns": 36.84219313,
+    "cos_scalar_ns": 1254.770187,
+    "cos_avx2_ns": 65.5833025
+   }
+  ]
+ }
+}

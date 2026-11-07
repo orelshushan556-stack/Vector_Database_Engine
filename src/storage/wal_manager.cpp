@@ -1,5 +1,6 @@
 ﻿#include "engine/storage/wal_manager.hpp"
 #include "engine/storage/crc32.hpp"
+#include "engine/diagnostics.hpp"
 
 #include <algorithm>
 #include <array>
@@ -77,6 +78,9 @@ void WalManager::sync_to_disk() {
     if (std::fflush(file_) != 0) {
         throw std::runtime_error("Failed to flush C runtime buffer");
     }
+#if defined(NEXUS_WAL_NO_FSYNC)
+    return;  // benchmark-only toggle, see engine/diagnostics.hpp
+#endif
 
 #if defined(_WIN32)
     const int fd = _fileno(file_);

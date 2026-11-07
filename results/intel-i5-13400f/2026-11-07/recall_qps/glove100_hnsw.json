@@ -1,0 +1,429 @@
+{
+ "suite": "recall_qps",
+ "task": "glove100_hnsw",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:09:47Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+  "--metric",
+  "ip",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "1",
+  "--index",
+  "hnsw",
+  "--ef",
+  "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+  "--save",
+  "/home/orels/nexus_bench_build/work/snapshots/glove100_nexus_hnsw_M16_efc200.nexus",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/recall_qps__glove100_hnsw.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "glove100",
+ "dataset_manifest": {
+  "dataset": "glove100",
+  "source": "http://ann-benchmarks.com/glove-100-angular.hdf5",
+  "metric": "angular",
+  "normalized": true,
+  "files": {
+   "base": {
+    "name": "glove100_base.fvecs",
+    "sha256": "108897c581a94a894bed4529b9dcceec8dfe6020c4c3a4bbef5f32e4649eaa17",
+    "bytes": 478139656
+   },
+   "query": {
+    "name": "glove100_query.fvecs",
+    "sha256": "5f9830aff51d9e336487e1d68e8fd0428234145a0f7ae26f074550e056a73642",
+    "bytes": 4040000
+   },
+   "gt": {
+    "name": "glove100_groundtruth.ivecs",
+    "sha256": "9f9723a455b26db1378ae4c0b9e4389665a9b8769c4287630eaa6cc350f199eb",
+    "bytes": 4040000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:49Z"
+ },
+ "engine": "nexus",
+ "index": "hnsw",
+ "M": 16,
+ "efc": 200,
+ "variant": "default",
+ "builds": 1,
+ "repeats": 1,
+ "wall_seconds": 486.556,
+ "result": {
+  "meta": {
+   "engine": "nexus",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+    "query": "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+    "gt": "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+    "metric": "ip",
+    "index": "hnsw",
+    "M": "16",
+    "efc": "200",
+    "ef": "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+    "k": "10",
+    "builds": "1",
+    "repeats": "1",
+    "save": "/home/orels/nexus_bench_build/work/snapshots/glove100_nexus_hnsw_M16_efc200.nexus"
+   }
+  },
+  "dataset": {
+   "base_rows": 1183514,
+   "dim": 100,
+   "queries": 10000
+  },
+  "rss_start_bytes": 4124672,
+  "rss_after_load_bytes": 485949440,
+  "builds": [
+   {
+    "build": 0,
+    "build_seconds": 352.9084344,
+    "train_seconds": 0,
+    "load_seconds": -1,
+    "save_seconds": 0.526684,
+    "snapshot_bytes": 658648184,
+    "rss_before_build_bytes": 486150144,
+    "rss_after_build_bytes": 1169727488,
+    "index_rss_delta_bytes": 683577344,
+    "peak_rss_bytes": 1169727488,
+    "points": [
+     {
+      "ef": 10,
+      "rerank": 0,
+      "recall": 0.48223,
+      "recall_min_query": 0,
+      "qps": 35278.55798,
+      "latency": {
+       "mean_us": 28.3458298,
+       "p50_us": 26.565,
+       "p95_us": 42.666,
+       "p99_us": 52.07,
+       "min_us": 11.898,
+       "max_us": 236.307,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.56664,
+      "recall_min_query": 0,
+      "qps": 26004.15804,
+      "latency": {
+       "mean_us": 38.4553885,
+       "p50_us": 36.141,
+       "p95_us": 57.254,
+       "p99_us": 70.245,
+       "min_us": 17.119,
+       "max_us": 157.283,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 24,
+      "rerank": 0,
+      "recall": 0.63499,
+      "recall_min_query": 0,
+      "qps": 19400.54918,
+      "latency": {
+       "mean_us": 51.5449326,
+       "p50_us": 48.432,
+       "p95_us": 77.023,
+       "p99_us": 94.463,
+       "min_us": 20.83,
+       "max_us": 208.028,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.67852,
+      "recall_min_query": 0,
+      "qps": 15789.30711,
+      "latency": {
+       "mean_us": 63.3340015,
+       "p50_us": 59.909,
+       "p95_us": 92.901,
+       "p99_us": 113.017,
+       "min_us": 23.355,
+       "max_us": 308.494,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 48,
+      "rerank": 0,
+      "recall": 0.73312,
+      "recall_min_query": 0,
+      "qps": 11605.68709,
+      "latency": {
+       "mean_us": 86.1646529,
+       "p50_us": 82.768,
+       "p95_us": 121.789,
+       "p99_us": 145.858,
+       "min_us": 32.526,
+       "max_us": 317.674,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.76742,
+      "recall_min_query": 0,
+      "qps": 9248.611316,
+      "latency": {
+       "mean_us": 108.1243406,
+       "p50_us": 104.787,
+       "p95_us": 149.462,
+       "p99_us": 182.337,
+       "min_us": 39.609,
+       "max_us": 972.986,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 96,
+      "rerank": 0,
+      "recall": 0.80842,
+      "recall_min_query": 0,
+      "qps": 6590.746079,
+      "latency": {
+       "mean_us": 151.7278906,
+       "p50_us": 149.634,
+       "p95_us": 203.501,
+       "p99_us": 243.474,
+       "min_us": 57.711,
+       "max_us": 471.795,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 128,
+      "rerank": 0,
+      "recall": 0.83564,
+      "recall_min_query": 0,
+      "qps": 5114.009556,
+      "latency": {
+       "mean_us": 195.541285,
+       "p50_us": 193.486,
+       "p95_us": 260.96,
+       "p99_us": 310.764,
+       "min_us": 78.301,
+       "max_us": 1297.798,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 192,
+      "rerank": 0,
+      "recall": 0.86623,
+      "recall_min_query": 0,
+      "qps": 3621.572791,
+      "latency": {
+       "mean_us": 276.123126,
+       "p50_us": 277.47,
+       "p95_us": 350.361,
+       "p99_us": 399.933,
+       "min_us": 109.999,
+       "max_us": 3433.997,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 256,
+      "rerank": 0,
+      "recall": 0.88665,
+      "recall_min_query": 0,
+      "qps": 2767.808808,
+      "latency": {
+       "mean_us": 361.2966319,
+       "p50_us": 364.419,
+       "p95_us": 457.601,
+       "p99_us": 522.411,
+       "min_us": 148.11,
+       "max_us": 1305.559,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 384,
+      "rerank": 0,
+      "recall": 0.91172,
+      "recall_min_query": 0,
+      "qps": 1957.179735,
+      "latency": {
+       "mean_us": 510.9392776,
+       "p50_us": 520.395,
+       "p95_us": 628.839,
+       "p99_us": 677.93,
+       "min_us": 226.393,
+       "max_us": 1037.984,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 512,
+      "rerank": 0,
+      "recall": 0.92734,
+      "recall_min_query": 0.1,
+      "qps": 1503.184647,
+      "latency": {
+       "mean_us": 665.2542667,
+       "p50_us": 679.802,
+       "p95_us": 817.09,
+       "p99_us": 866.148,
+       "min_us": 294.573,
+       "max_us": 1270.143,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 768,
+      "rerank": 0,
+      "recall": 0.94489,
+      "recall_min_query": 0.1,
+      "qps": 1033.769604,
+      "latency": {
+       "mean_us": 967.33353,
+       "p50_us": 988.358,
+       "p95_us": 1192.658,
+       "p99_us": 1251.762,
+       "min_us": 449.277,
+       "max_us": 1539.957,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 1024,
+      "rerank": 0,
+      "recall": 0.95655,
+      "recall_min_query": 0.1,
+      "qps": 788.7612333,
+      "latency": {
+       "mean_us": 1267.810787,
+       "p50_us": 1293.921,
+       "p95_us": 1563.433,
+       "p99_us": 1633.253,
+       "min_us": 580.04,
+       "max_us": 2530.538,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 1536,
+      "rerank": 0,
+      "recall": 0.9701,
+      "recall_min_query": 0.3,
+      "qps": 538.9453539,
+      "latency": {
+       "mean_us": 1855.475686,
+       "p50_us": 1895.036,
+       "p95_us": 2289.903,
+       "p99_us": 2367.75,
+       "min_us": 865.477,
+       "max_us": 3637.586,
+       "samples": 10000
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

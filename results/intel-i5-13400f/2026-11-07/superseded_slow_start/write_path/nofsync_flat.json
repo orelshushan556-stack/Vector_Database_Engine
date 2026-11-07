@@ -1,0 +1,134 @@
+{
+ "suite": "write_path",
+ "task": "nofsync_flat",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T12:45:39Z",
+ "command": [
+  "/home/orels/nexus_bench_build/nofsync/nexus_bench",
+  "write-path",
+  "--base",
+  "/home/orels/nexus_data/sift/sift_base.fvecs",
+  "--n",
+  "10000",
+  "--index",
+  "flat",
+  "--dir",
+  "/home/orels/nexus_bench_build/work/write_path",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/write_path__nofsync_flat.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "variant": "nofsync",
+ "filesystem": "ext4 on /dev/sdd (mount /)",
+ "wall_seconds": 0.042,
+ "result": {
+  "compiler": "gcc 15.2.0",
+  "build_flags": "avx2 fma NDEBUG NEXUS_WAL_NO_FSYNC",
+  "index": "flat",
+  "n": 10000,
+  "dim": 128,
+  "pinned_cpu": 2,
+  "pin_ok": true,
+  "wal_fsync_per_insert": false,
+  "index_only": {
+   "seconds": 0.004012145,
+   "inserts_per_second": 2492432.352
+  },
+  "engine_with_wal": {
+   "seconds": 0.008988112,
+   "inserts_per_second": 1112580.707,
+   "wal_bytes": 5300000,
+   "insert_latency": {
+    "mean_us": 0.8694914,
+    "p50_us": 0.385,
+    "p95_us": 1.438,
+    "p99_us": 2.396,
+    "min_us": 0.35,
+    "max_us": 1479.334,
+    "samples": 10000
+   }
+  },
+  "checkpoint": {
+   "seconds": 0.01457557,
+   "snapshot_bytes": 5200028,
+   "wal_bytes_after": 0
+  },
+  "snapshot_load_seconds": [
+   0.004962114,
+   0.001557605,
+   0.001351384
+  ]
+ }
+}

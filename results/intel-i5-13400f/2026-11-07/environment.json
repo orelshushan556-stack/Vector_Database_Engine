@@ -1,0 +1,144 @@
+{
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "b48c33bf121fbab99d1b8612cae038bd4d710cb4",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "config": {
+  "_comment": "Parameters for scripts/run_all.py. M/efc: the main configuration used by recall_qps, distance_computations, concurrency and ablation. grid_*: extra (M, efConstruction) pairs built for BOTH engines in vs_hnswlib; the main configuration's recall_qps builds are reused as one more grid point.",
+  "M": 16,
+  "efc": 200,
+  "glove_M": 16,
+  "glove_efc": 200,
+  "grid_sift": [
+   [
+    8,
+    100
+   ],
+   [
+    8,
+    300
+   ],
+   [
+    16,
+    100
+   ],
+   [
+    32,
+    100
+   ],
+   [
+    32,
+    300
+   ]
+  ],
+  "grid_glove": [
+   [
+    32,
+    200
+   ],
+   [
+    32,
+    500
+   ],
+   [
+    48,
+    500
+   ]
+  ],
+  "ef_glove_extra": [
+   1024,
+   1536
+  ],
+  "concurrency_ef": 64
+ },
+ "argv": [
+  "scripts/run_all.py",
+  "--data-dir",
+  "/home/orels/nexus_data",
+  "--build-root",
+  "/home/orels/nexus_bench_build",
+  "--machine-id",
+  "intel-i5-13400f",
+  "--date",
+  "2026-11-07",
+  "--crash-cycles",
+  "500",
+  "--resume",
+  "--skip-build",
+  "--suites",
+  "sanity_start",
+  "before_after_fix",
+  "crash_recovery",
+  "write_path",
+  "concurrency",
+  "ablation",
+  "sanity_end"
+ ]
+}

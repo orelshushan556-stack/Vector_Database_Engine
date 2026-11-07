@@ -1,4 +1,5 @@
 ﻿#include "engine/index/hnsw_index.hpp"
+#include "engine/diagnostics.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include "engine/storage/serializer.hpp"
 #include "hnsw_common.hpp"
@@ -111,6 +112,7 @@ std::priority_queue<std::pair<float, uint32_t>> HNSWIndex::search_layer(
 
 float HNSWIndex::distance_to(VectorView query, uint32_t internal_id) const {
     VectorView target(&storage_[static_cast<std::size_t>(internal_id) * dimension_], dimension_);
+    NEXUS_COUNT_EXACT_DISTANCE();
     switch (metric_) {
         case MetricType::L2:
             return l2_distance_squared_avx2(query, target);

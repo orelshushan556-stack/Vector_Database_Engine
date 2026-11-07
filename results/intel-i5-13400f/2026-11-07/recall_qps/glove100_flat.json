@@ -1,0 +1,202 @@
+{
+ "suite": "recall_qps",
+ "task": "glove100_flat",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:01:41Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+  "--metric",
+  "ip",
+  "--M",
+  "16",
+  "--efc",
+  "200",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "1",
+  "--index",
+  "flat",
+  "--max-queries",
+  "1000",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/recall_qps__glove100_flat.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "glove100",
+ "dataset_manifest": {
+  "dataset": "glove100",
+  "source": "http://ann-benchmarks.com/glove-100-angular.hdf5",
+  "metric": "angular",
+  "normalized": true,
+  "files": {
+   "base": {
+    "name": "glove100_base.fvecs",
+    "sha256": "108897c581a94a894bed4529b9dcceec8dfe6020c4c3a4bbef5f32e4649eaa17",
+    "bytes": 478139656
+   },
+   "query": {
+    "name": "glove100_query.fvecs",
+    "sha256": "5f9830aff51d9e336487e1d68e8fd0428234145a0f7ae26f074550e056a73642",
+    "bytes": 4040000
+   },
+   "gt": {
+    "name": "glove100_groundtruth.ivecs",
+    "sha256": "9f9723a455b26db1378ae4c0b9e4389665a9b8769c4287630eaa6cc350f199eb",
+    "bytes": 4040000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:49Z"
+ },
+ "engine": "nexus",
+ "index": "flat",
+ "M": 16,
+ "efc": 200,
+ "variant": "default",
+ "builds": 1,
+ "repeats": 1,
+ "wall_seconds": 47.095,
+ "result": {
+  "meta": {
+   "engine": "nexus",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+    "query": "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+    "gt": "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+    "metric": "ip",
+    "index": "flat",
+    "M": "16",
+    "efc": "200",
+    "k": "10",
+    "builds": "1",
+    "repeats": "1",
+    "max-queries": "1000"
+   }
+  },
+  "dataset": {
+   "base_rows": 1183514,
+   "dim": 100,
+   "queries": 1000
+  },
+  "rss_start_bytes": 4206592,
+  "rss_after_load_bytes": 479682560,
+  "builds": [
+   {
+    "build": 0,
+    "build_seconds": 0.135410135,
+    "train_seconds": 0,
+    "load_seconds": -1,
+    "save_seconds": -1,
+    "snapshot_bytes": 0,
+    "rss_before_build_bytes": 479879168,
+    "rss_after_build_bytes": 962822144,
+    "index_rss_delta_bytes": 482942976,
+    "peak_rss_bytes": 962822144,
+    "points": [
+     {
+      "ef": 0,
+      "rerank": 0,
+      "recall": 1,
+      "recall_min_query": 1,
+      "qps": 42.9683356,
+      "latency": {
+       "mean_us": 23272.95172,
+       "p50_us": 23210.222,
+       "p95_us": 23728.694,
+       "p99_us": 24197.796,
+       "min_us": 22994.142,
+       "max_us": 26369.778,
+       "samples": 1000
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

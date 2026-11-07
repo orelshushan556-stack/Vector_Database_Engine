@@ -1,0 +1,187 @@
+{
+ "suite": "concurrency",
+ "task": "mix_90_10",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T14:23:58Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/nexus_bench",
+  "concurrency",
+  "--snapshot",
+  "/home/orels/nexus_bench_build/work/snapshots/sift_nexus_hnsw_M16_efc200.nexus",
+  "--query",
+  "/home/orels/nexus_data/sift/sift_query.fvecs",
+  "--threads",
+  "1,2,4,6,8,10,12,16",
+  "--seconds",
+  "5",
+  "--ef",
+  "64",
+  "--wal",
+  "/home/orels/nexus_bench_build/work/concurrency.wal",
+  "--write-frac",
+  "0.1",
+  "--insert-base",
+  "/home/orels/nexus_data/sift/sift_learn.fvecs",
+  "--out",
+  "/home/orels/nexus_bench_build/work/concurrency__mix_90_10.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "threads_unpinned": true,
+ "filesystem": "ext4 on /dev/sdd (mount /)",
+ "wall_seconds": 41.196,
+ "result": {
+  "compiler": "gcc 15.2.0",
+  "build_flags": "avx2 fma NDEBUG",
+  "ef": 64,
+  "k": 10,
+  "write_frac": 0.1,
+  "seconds_per_point": 5,
+  "index_size_start": 1000000,
+  "hardware_threads": 16,
+  "points": [
+   {
+    "threads": 1,
+    "seconds": 5.004881171,
+    "reads": 6966,
+    "writes": 733,
+    "read_qps": 1391.841237,
+    "write_ops": 146.4570236,
+    "total_ops": 1538.298261
+   },
+   {
+    "threads": 2,
+    "seconds": 5.004246538,
+    "reads": 9083,
+    "writes": 974,
+    "read_qps": 1815.058457,
+    "write_ops": 194.6346953,
+    "total_ops": 2009.693152
+   },
+   {
+    "threads": 4,
+    "seconds": 5.011445912,
+    "reads": 8781,
+    "writes": 995,
+    "read_qps": 1752.18892,
+    "write_ops": 198.5454932,
+    "total_ops": 1950.734413
+   },
+   {
+    "threads": 6,
+    "seconds": 5.024585472,
+    "reads": 8483,
+    "writes": 983,
+    "read_qps": 1688.298477,
+    "write_ops": 195.6380293,
+    "total_ops": 1883.936506
+   },
+   {
+    "threads": 8,
+    "seconds": 5.034294845,
+    "reads": 8495,
+    "writes": 995,
+    "read_qps": 1687.425997,
+    "write_ops": 197.6443634,
+    "total_ops": 1885.070361
+   },
+   {
+    "threads": 10,
+    "seconds": 5.045871122,
+    "reads": 8643,
+    "writes": 996,
+    "read_qps": 1712.885603,
+    "write_ops": 197.389108,
+    "total_ops": 1910.274711
+   },
+   {
+    "threads": 12,
+    "seconds": 5.050632816,
+    "reads": 8813,
+    "writes": 989,
+    "read_qps": 1744.929858,
+    "write_ops": 195.8170463,
+    "total_ops": 1940.746904
+   },
+   {
+    "threads": 16,
+    "seconds": 5.07776801,
+    "reads": 8880,
+    "writes": 1009,
+    "read_qps": 1748.799863,
+    "write_ops": 198.7093538,
+    "total_ops": 1947.509217
+   }
+  ],
+  "index_size_end": 1007674
+ }
+}

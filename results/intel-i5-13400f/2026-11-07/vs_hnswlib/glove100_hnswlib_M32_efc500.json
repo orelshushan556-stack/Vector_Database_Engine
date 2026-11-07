@@ -1,0 +1,424 @@
+{
+ "suite": "vs_hnswlib",
+ "task": "glove100_hnswlib_M32_efc500",
+ "machine_id": "intel-i5-13400f",
+ "timestamp_utc": "2026-11-07T16:48:59Z",
+ "command": [
+  "/home/orels/nexus_bench_build/default/hnswlib_bench",
+  "ann",
+  "--base",
+  "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+  "--query",
+  "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+  "--gt",
+  "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+  "--metric",
+  "ip",
+  "--M",
+  "32",
+  "--efc",
+  "500",
+  "--k",
+  "10",
+  "--builds",
+  "1",
+  "--repeats",
+  "1",
+  "--ef",
+  "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+  "--pin",
+  "2",
+  "--out",
+  "/home/orels/nexus_bench_build/work/vs_hnswlib__glove100_hnswlib_M32_efc500.tmp.json"
+ ],
+ "env": {
+  "python": "3.14.4",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "runtime": "wsl2",
+  "os": "Linux",
+  "os_release": "Ubuntu 26.04 LTS",
+  "kernel": "6.18.33.2-microsoft-standard-WSL2",
+  "ram_bytes": 8237252608,
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "vendor": "GenuineIntel",
+   "logical_cpus": 16,
+   "physical_cores_visible": 8,
+   "hybrid_visible": false,
+   "flags_checked": {
+    "avx2": true,
+    "fma": true,
+    "sse4_2": true,
+    "avx512f": false
+   }
+  },
+  "host": {
+   "cpu_model": "13th Gen Intel(R) Core(TM) i5-13400F",
+   "physical_cores": "10",
+   "logical_processors": "16",
+   "ram_bytes": "17004023808",
+   "os": "??Microsoft Windows 11 Pro 10.0.26200",
+   "power_scheme": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd \ufffd\ufffd\ufffd\ufffd\ufffd\ufffd)",
+   "disks": "KINGSTON SNV2S1000G SSD NVMe\nCT2000P3SSD8 SSD NVMe"
+  },
+  "work_dir": "/home/orels/nexus_bench_build/work",
+  "work_dir_filesystem": "ext4 on /dev/sdd (mount /)",
+  "data_dir": "/home/orels/nexus_data",
+  "git_commit": "6b47c628af732ae6609d1b4215283f278e70dc52",
+  "git_dirty": false,
+  "governor": null,
+  "pinning": {
+   "cpu": 2,
+   "note": "logical cpu 2 (WSL2 vCPU: Hyper-V schedules vCPUs on host logical processors, so the physical core and P/E type cannot be pinned from inside the VM)"
+  }
+ },
+ "build": {
+  "default": {
+   "options": [
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "count": {
+   "options": [
+    "-DNEXUS_COUNT_DISTANCES=ON",
+    "-DNEXUS_BENCH_HNSWLIB=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "noprefetch": {
+   "options": [
+    "-DNEXUS_DISABLE_PREFETCH=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "nofsync": {
+   "options": [
+    "-DNEXUS_WAL_NO_FSYNC=ON",
+    "-DNEXUS_BUILD_TESTS=OFF"
+   ]
+  },
+  "compiler_path": "/usr/bin/c++",
+  "compiler_version": "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "cxx_flags": "-Wall -Wextra -Wpedantic -mavx2 -mfma -O3 (CMAKE_BUILD_TYPE=Release: -O3 -DNDEBUG)"
+ },
+ "dataset": "glove100",
+ "dataset_manifest": {
+  "dataset": "glove100",
+  "source": "http://ann-benchmarks.com/glove-100-angular.hdf5",
+  "metric": "angular",
+  "normalized": true,
+  "files": {
+   "base": {
+    "name": "glove100_base.fvecs",
+    "sha256": "108897c581a94a894bed4529b9dcceec8dfe6020c4c3a4bbef5f32e4649eaa17",
+    "bytes": 478139656
+   },
+   "query": {
+    "name": "glove100_query.fvecs",
+    "sha256": "5f9830aff51d9e336487e1d68e8fd0428234145a0f7ae26f074550e056a73642",
+    "bytes": 4040000
+   },
+   "gt": {
+    "name": "glove100_groundtruth.ivecs",
+    "sha256": "9f9723a455b26db1378ae4c0b9e4389665a9b8769c4287630eaa6cc350f199eb",
+    "bytes": 4040000
+   }
+  },
+  "prepared_utc": "2026-11-07T12:23:49Z"
+ },
+ "engine": "hnswlib",
+ "index": "hnswlib",
+ "M": 32,
+ "efc": 500,
+ "variant": "default",
+ "builds": 1,
+ "repeats": 1,
+ "wall_seconds": 1585.754,
+ "result": {
+  "meta": {
+   "engine": "hnswlib",
+   "compiler": "gcc 15.2.0",
+   "build_flags": "avx2 fma NDEBUG",
+   "pinned_cpu": 2,
+   "pin_ok": true,
+   "hardware_threads": 16,
+   "args": {
+    "base": "/home/orels/nexus_data/glove100/glove100_base.fvecs",
+    "query": "/home/orels/nexus_data/glove100/glove100_query.fvecs",
+    "gt": "/home/orels/nexus_data/glove100/glove100_groundtruth.ivecs",
+    "metric": "ip",
+    "M": "32",
+    "efc": "500",
+    "ef": "10,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536",
+    "k": "10",
+    "builds": "1",
+    "repeats": "1"
+   }
+  },
+  "dataset": {
+   "base_rows": 1183514,
+   "dim": 100,
+   "queries": 10000
+  },
+  "rss_start_bytes": 4087808,
+  "rss_after_load_bytes": 485912576,
+  "builds": [
+   {
+    "build": 0,
+    "seed": 100,
+    "build_seconds": 1360.131426,
+    "train_seconds": 0,
+    "load_seconds": -1,
+    "save_seconds": -1,
+    "snapshot_bytes": 0,
+    "rss_before_build_bytes": 486113280,
+    "rss_after_build_bytes": 1398558720,
+    "index_rss_delta_bytes": 912445440,
+    "peak_rss_bytes": 1398558720,
+    "points": [
+     {
+      "ef": 10,
+      "rerank": 0,
+      "recall": 0.58386,
+      "recall_min_query": 0,
+      "qps": 21700.94376,
+      "latency": {
+       "mean_us": 46.0809452,
+       "p50_us": 43.633,
+       "p95_us": 68.948,
+       "p99_us": 83.945,
+       "min_us": 14.177,
+       "max_us": 287.515,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 16,
+      "rerank": 0,
+      "recall": 0.66556,
+      "recall_min_query": 0,
+      "qps": 16078.67923,
+      "latency": {
+       "mean_us": 62.1941632,
+       "p50_us": 59.347,
+       "p95_us": 91.741,
+       "p99_us": 112.526,
+       "min_us": 18.777,
+       "max_us": 242.818,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 24,
+      "rerank": 0,
+      "recall": 0.7258,
+      "recall_min_query": 0,
+      "qps": 12183.79267,
+      "latency": {
+       "mean_us": 82.0762489,
+       "p50_us": 78.905,
+       "p95_us": 118.887,
+       "p99_us": 145.809,
+       "min_us": 23.801,
+       "max_us": 391.94,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 32,
+      "rerank": 0,
+      "recall": 0.76454,
+      "recall_min_query": 0,
+      "qps": 9884.673635,
+      "latency": {
+       "mean_us": 101.166719,
+       "p50_us": 98.515,
+       "p95_us": 143.443,
+       "p99_us": 172.556,
+       "min_us": 27.288,
+       "max_us": 261.998,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 48,
+      "rerank": 0,
+      "recall": 0.81193,
+      "recall_min_query": 0,
+      "qps": 7188.04489,
+      "latency": {
+       "mean_us": 139.119888,
+       "p50_us": 137.651,
+       "p95_us": 191.238,
+       "p99_us": 229.028,
+       "min_us": 34.326,
+       "max_us": 393.034,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 64,
+      "rerank": 0,
+      "recall": 0.84208,
+      "recall_min_query": 0,
+      "qps": 5712.719639,
+      "latency": {
+       "mean_us": 175.0479742,
+       "p50_us": 175.03,
+       "p95_us": 233.943,
+       "p99_us": 271.943,
+       "min_us": 45.465,
+       "max_us": 504.159,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 96,
+      "rerank": 0,
+      "recall": 0.87931,
+      "recall_min_query": 0,
+      "qps": 4049.639463,
+      "latency": {
+       "mean_us": 246.9355628,
+       "p50_us": 250.473,
+       "p95_us": 320.755,
+       "p99_us": 367.479,
+       "min_us": 62.404,
+       "max_us": 627.201,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 128,
+      "rerank": 0,
+      "recall": 0.90157,
+      "recall_min_query": 0,
+      "qps": 3133.535046,
+      "latency": {
+       "mean_us": 319.1283918,
+       "p50_us": 325.294,
+       "p95_us": 409.143,
+       "p99_us": 464.48,
+       "min_us": 80.985,
+       "max_us": 810.308,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 192,
+      "rerank": 0,
+      "recall": 0.9282,
+      "recall_min_query": 0.1,
+      "qps": 2180.971575,
+      "latency": {
+       "mean_us": 458.5112486,
+       "p50_us": 471.533,
+       "p95_us": 578.751,
+       "p99_us": 627.851,
+       "min_us": 126.81,
+       "max_us": 1051.521,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 256,
+      "rerank": 0,
+      "recall": 0.94451,
+      "recall_min_query": 0.1,
+      "qps": 1682.518086,
+      "latency": {
+       "mean_us": 594.3472516,
+       "p50_us": 613.439,
+       "p95_us": 743.914,
+       "p99_us": 799.484,
+       "min_us": 166.588,
+       "max_us": 2674.942,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 384,
+      "rerank": 0,
+      "recall": 0.96364,
+      "recall_min_query": 0.2,
+      "qps": 1151.131913,
+      "latency": {
+       "mean_us": 868.7101702,
+       "p50_us": 899.946,
+       "p95_us": 1089.247,
+       "p99_us": 1146.747,
+       "min_us": 260.376,
+       "max_us": 1529.284,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 512,
+      "rerank": 0,
+      "recall": 0.97411,
+      "recall_min_query": 0.3,
+      "qps": 879.983814,
+      "latency": {
+       "mean_us": 1136.384538,
+       "p50_us": 1176.881,
+       "p95_us": 1425.911,
+       "p99_us": 1506.39,
+       "min_us": 368.639,
+       "max_us": 1977.845,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 768,
+      "rerank": 0,
+      "recall": 0.98499,
+      "recall_min_query": 0.5,
+      "qps": 599.3769362,
+      "latency": {
+       "mean_us": 1668.399199,
+       "p50_us": 1731.183,
+       "p95_us": 2100.538,
+       "p99_us": 2178.78,
+       "min_us": 590.44,
+       "max_us": 2760.422,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 1024,
+      "rerank": 0,
+      "recall": 0.99036,
+      "recall_min_query": 0.6,
+      "qps": 460.536485,
+      "latency": {
+       "mean_us": 2171.380624,
+       "p50_us": 2256.216,
+       "p95_us": 2730.357,
+       "p99_us": 2822.771,
+       "min_us": 836.425,
+       "max_us": 4079.626,
+       "samples": 10000
+      }
+     },
+     {
+      "ef": 1536,
+      "rerank": 0,
+      "recall": 0.99542,
+      "recall_min_query": 0.7,
+      "qps": 312.652936,
+      "latency": {
+       "mean_us": 3198.434702,
+       "p50_us": 3325.802,
+       "p95_us": 4018.715,
+       "p99_us": 4147.078,
+       "min_us": 1243.35,
+       "max_us": 4663.888,
+       "samples": 10000
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

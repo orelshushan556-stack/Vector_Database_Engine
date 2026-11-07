@@ -1,4 +1,5 @@
 ﻿#include "engine/index/hnsw_index_sq8.hpp"
+#include "engine/diagnostics.hpp"
 #include "engine/distance/simd_metrics.hpp"
 #include "engine/storage/serializer.hpp"
 #include "hnsw_common.hpp"
@@ -98,12 +99,15 @@ float HNSWIndexSQ8::compute_quantized_distance(VectorView query, uint32_t node_i
     const auto& mins = quantizer_.min_values();
     switch (metric_) {
         case MetricType::L2:
+            NEXUS_COUNT_QUANTIZED_DISTANCE();
             return quantized_l2_distance_sq_avx2(query, target, scales, mins);
         case MetricType::Cosine: {
+            NEXUS_COUNT_EXACT_DISTANCE();
             auto raw = get_raw_vector(node_id);
             return cosine_distance_avx2(query, raw);
         }
         case MetricType::DotProduct: {
+            NEXUS_COUNT_EXACT_DISTANCE();
             auto raw = get_raw_vector(node_id);
             return -dot_product_avx2(query, raw);
         }
@@ -113,6 +117,7 @@ float HNSWIndexSQ8::compute_quantized_distance(VectorView query, uint32_t node_i
 
 float HNSWIndexSQ8::compute_exact_distance(VectorView query, uint32_t node_id) const {
     const auto target = get_raw_vector(node_id);
+    NEXUS_COUNT_EXACT_DISTANCE();
     switch (metric_) {
         case MetricType::L2:
             return l2_distance_squared_avx2(query, target);

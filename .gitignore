@@ -54,3 +54,9 @@ nexus.wal
 # Local Blender experiment artifacts (unreferenced by the build)
 generate_bonsai.py
 web/archive/
+
+# Benchmark build trees and scratch (snapshots, WALs)
+build-bench/
+
+# Python bytecode
+__pycache__/
