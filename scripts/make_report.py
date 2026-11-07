@@ -117,7 +117,8 @@ def headlines(m: bd.Machine) -> dict:
     on, off = [a_ for a_, _ in pairs], [b_ for _, b_ in pairs]
     if pairs:
         rs = [st.mean(r[i].qps for r in on) / st.mean(r[i].qps for r in off) for i in range(len(on[0]))]
-        h["prefetch"] = {"min": min(rs), "max": max(rs), "pairs": len(pairs)}
+        per = [a_[i].qps / b_[i].qps for a_, b_ in pairs for i in range(len(a_))]
+        h["prefetch"] = {"min": min(rs), "max": max(rs), "pairs": len(pairs), "wins": sum(v > 1 for v in per), "n": len(per)}
     wp = {}
     for v in ("default", "nofsync"):
         for idx in ("flat", "hnsw"):
@@ -143,6 +144,33 @@ def headlines(m: bd.Machine) -> dict:
             probes[tag] = st.median(qs)
     if len(probes) == 2:
         h["drift"] = {"start_qps": probes["start"], "end_qps": probes["end"], "change": probes["end"] / probes["start"] - 1}
+    # main-pass files that were set aside because of a slow window at the start (DECISIONS.md, item 16)
+    sup = m.root / "superseded_slow_start"
+    if sup.exists():
+        def ef64(path):
+            if not path.exists():
+                return []
+            r = json.loads(path.read_text())["result"]
+            return [p["qps"] for b in r["builds"] for p in b["points"] if p["ef"] == 64]
+        s0 = [q for i in range(3) for q in ef64(sup / "sanity_start" / f"probe_{i}.json")]
+        s1 = [q for i in range(3) for q in ef64(sup / "sanity_end" / f"probe_{i}.json")]
+        info = {}
+        if s0 and s1:
+            info.update(start_qps=st.median(s0), end_qps=st.median(s1))
+        bf = sup / "before_after_fix" / "before_hnsw.json"
+        if bf.exists() and h.get("fix"):
+            r = json.loads(bf.read_text())["result"]
+            vals = [p["recall"] for b in r["builds"] for p in b["points"] if p["ef"] == h["fix"]["ef"]]
+            if vals:
+                info.update(before_min=min(vals), builds=len(vals))
+        if info:
+            h["superseded"] = info
+    sq = bd.best_at(bd.ann_points(m.result("recall_qps", "sift_sq8")), 0.95)
+    fp = bd.best_at(bd.ann_points(m.result("recall_qps", "sift_hnsw")), 0.95)
+    if sq and fp:
+        h["sift_sq8_r95"] = {"sq8_qps": sq.qps, "sq8_recall": sq.recall, "sq8_ef": sq.ef, "sq8_rerank": sq.rerank,
+                             "hnsw_qps": fp.qps, "hnsw_recall": fp.recall, "hnsw_ef": fp.ef}
+    h["commits"] = m.commits
     h["gaps"] = m.gaps()
     return h
 
@@ -195,8 +223,8 @@ def sections(m: bd.Machine, h: dict) -> list[dict]:
                            "was queried with efSearch from 10 to 768. Each point is Recall@10 over the 10,000 standard "
                            "queries against single-thread queries per second (one query at a time).",
                   read="Each line is one engine's best trade-off (its Pareto frontier). Further right is more accurate; "
-                       "higher is faster; up-and-right is better. The dashed vertical line marks 95% recall. The star is "
-                       "an exact brute-force scan.",
+                       "higher is faster; up-and-right is better. The dashed vertical line marks 95% recall. The dashed "
+                       "horizontal line is an exact brute-force scan.",
                   shows=cmp_sentence(r95, "SIFT1M") + " " + targets_table("sift"),
                   caveats="Absolute QPS depends on this CPU and on WSL2; compare the ratio, not the numbers, across "
                           "machines. Both engines were compiled with the same flags (-O3 -mavx2 -mfma) and run on the "
@@ -233,7 +261,11 @@ def sections(m: bd.Machine, h: dict) -> list[dict]:
                          f"(median {fx.get('before_median', 0):.3f}); after the fix, the worst build reached "
                          f"{fx.get('after_min', 0):.3f} (median {fx.get('after_median', 0):.3f}). The old link-maintenance "
                          f"rule (evict the farthest neighbor) disconnected parts of the graph in some builds, and no "
-                         f"efSearch value could reach them. The heuristic keeps diverse links, so every build is stable.")
+                         f"efSearch value could reach them. The heuristic keeps diverse links, so every build is stable."
+                         + (f" An earlier pass of the same test (set aside for timing reasons; recall is unaffected) drew "
+                            f"{h['superseded']['builds']} other before-fix builds, and its worst was "
+                            f"{h['superseded']['before_min']:.3f}: how bad the old rule gets depends on the random graph."
+                            if h.get("superseded", {}).get("before_min") is not None else ""))
                   if fx else "Not available.",
                   caveats="SIFT-10K only (10,000 vectors). The fix commit also changed SQ8 re-ranking; this chart uses the "
                           "FP32 index, which only the graph change affects."))
@@ -261,19 +293,26 @@ def sections(m: bd.Machine, h: dict) -> list[dict]:
                           "disk."))
     sc = h.get("scaling", {})
     S.append(dict(id="scaling", title="Multi-thread throughput", fig="thread_scaling",
-                  measured="Concurrent searches through VectorEngine (the thread-safe wrapper) on the SIFT1M graph, for 5 "
-                           "seconds per thread count. A second run mixes 10% inserts (each with a log fsync) into the "
+                  measured="Concurrent searches through VectorEngine (the thread-safe wrapper) on the SIFT1M graph: one sweep "
+                           "at 5 seconds and a repeat at 10 seconds per thread count (the line is their mean). A third run mixes 10% inserts (each with a log fsync) into the "
                            "searches.",
                   read="The dotted line is perfect linear scaling from one thread. The vertical lines mark the host's "
                        "physical cores and logical CPUs.",
                   shows=(f"Throughput grows {sc.get('at_phys_speedup', 0):.1f}x at {sc.get('at_phys_threads')} threads "
                          f"({sc.get('at_phys_efficiency', 0) * 100:.0f}% of linear) and peaks at {n0(sc.get('best_qps'))} QPS "
-                         f"with {sc.get('best_threads')} threads. Beyond the physical cores, Hyper-Threading and the "
-                         f"slower E-cores add less per thread.") if sc else "Not available.",
-                  caveats="Threads are not pinned." + (f" The host CPU has{bd.known_topology(m.cpu)}, which a WSL2 guest "
-                          "cannot tell apart, so scaling past the performance-core count mixes core types."
-                          if bd.known_topology(m.cpu) else "") + " Writes take an exclusive index lock, so the mixed "
-                          "run shows how much a writer costs the readers."))
+                         f"with {sc.get('best_threads')} threads"
+                         + (f"; with all 16 logical CPUs busy it falls to {n0(sc['q16'])} QPS." if sc.get("q16") else ".")
+                         + (f" With 10% inserts mixed in, the best point is {n0(sc['mix_best']['reads'])} reads/s plus "
+                            f"{n0(sc['mix_best']['writes'])} writes/s ({sc['mix_best']['threads']} threads). Each thread "
+                            f"issues its own inserts one at a time, and inserts are serialized by the log mutex, each "
+                            f"waiting for its fsync, so the whole closed loop runs at the fsync rate: about nine reads per "
+                            f"write. Searches are not blocked by an fsync; the log is written before the index lock is "
+                            f"taken." if sc.get("mix_best") else "")) if sc else "Not available.",
+                  caveats="Threads are not pinned." + (f" Host CPU{bd.known_topology(m.cpu)}: a WSL2 guest "
+                          "cannot tell the core types apart, so scaling past the performance-core count mixes core types."
+                          if bd.known_topology(m.cpu) else "") + " The mixed run is a closed loop (each thread waits for its "
+                          "own insert), so it measures how fsync-bound writes pace a thread, not how much a separate "
+                          "writer slows independent readers; that was not measured."))
     sm = h.get("simd", {})
     S.append(dict(id="simd", title="SIMD kernels", fig="simd_speedup",
                   measured="Nanoseconds per distance call for the AVX2+FMA kernels against the engine's scalar reference "
@@ -309,9 +348,10 @@ def sections(m: bd.Machine, h: dict) -> list[dict]:
     pf = h.get("prefetch", {})
     S.append(dict(id="prefetch", title="Ablation: software prefetch", fig="prefetch_ablation",
                   measured="The same saved SIFT1M graph searched by two builds that differ only in the prefetch toggle, "
-                           "run alternately twice each.",
+                           f"run alternately (on, off, on, off, ...) for {pf.get('pairs', '?')} pairs.",
                   read="Bars above 1 mean prefetching helps at that efSearch.",
-                  shows=(f"Prefetch changes throughput by {(pf['min'] - 1) * 100:+.1f}% to {(pf['max'] - 1) * 100:+.1f}%. "
+                  shows=(f"Prefetch changes throughput by {(pf['min'] - 1) * 100:+.1f}% to {(pf['max'] - 1) * 100:+.1f}% "
+                         f"(ratio of means per efSearch); it was faster in {pf.get('wins')} of {pf.get('n')} individual run pairs. "
                          f"README section 2.2 previously said its effect was unmeasured; this is the first measurement.")
                   if pf else "Not available.",
                   caveats="Prefetch benefit depends on the memory system; it may differ on other CPUs."))
@@ -417,6 +457,13 @@ def build_html(m: bd.Machine, h: dict) -> str:
     drift = h.get("drift")
     drift_txt = (f"A fixed SIFT-10K graph was timed at the start and at the end of the run: {n0(drift['start_qps'])} vs "
                  f"{n0(drift['end_qps'])} QPS ({drift['change'] * 100:+.1f}%).") if drift else "Drift probe not available."
+    sp = h.get("superseded", {})
+    if sp.get("start_qps"):
+        drift_txt += (f" In the main pass the same probe ran at {n0(sp['start_qps'])} QPS at the start and "
+                      f"{n0(sp['end_qps'])} QPS at the end: a slow window in the first minutes of that pass. Its "
+                      f"suites from that window (before/after fix, crash recovery, write path) were re-run in a follow-up "
+                      f"pass, and the originals are kept under superseded_slow_start/. Suites from the rest of the main "
+                      f"pass ran at end-of-run speed.")
     gaps = h.get("gaps", [])
     gaps_html = ("<ul>" + "".join(f"<li><code>{html.escape(g['suite'])}/{html.escape(g['task'])}</code>: {html.escape(g['reason'][:200])}</li>"
                                   for g in gaps) + "</ul>") if gaps else "<p>None: every planned task produced data.</p>"
@@ -424,12 +471,12 @@ def build_html(m: bd.Machine, h: dict) -> str:
     meth = f"""<section id="method"><h2>Methodology and hardware</h2>
 <table><tbody>
 <tr><th>Machine</th><td>{html.escape(m.machine_id)}: {html.escape(m.cpu)}; host {html.escape(str(host.get('physical_cores', '?')))} cores / {html.escape(str(host.get('logical_processors', '?')))} threads{html.escape(bd.known_topology(m.cpu))}, RAM {int(host.get('ram_bytes') or env.get('ram_bytes') or 0) / 2**30:.0f} GiB</td></tr>
-<tr><th>Runtime</th><td>{html.escape(env.get('runtime', '?'))}, {html.escape(env.get('os_release', ''))}, kernel {html.escape(env.get('kernel', ''))}; host {html.escape(host.get('os', ''))}</td></tr>
+<tr><th>Runtime</th><td>{html.escape(env.get('runtime', '?'))}, {html.escape(env.get('os_release', ''))}, kernel {html.escape(env.get('kernel', ''))}; host {html.escape(clean_text(host.get('os', '')))}</td></tr>
 <tr><th>Compiler</th><td>{html.escape(m.build.get('compiler_version', ''))}; {html.escape(m.build.get('cxx_flags', ''))}</td></tr>
 <tr><th>Pinning</th><td>{html.escape(env.get('pinning', {}).get('note', ''))}</td></tr>
 <tr><th>Disk / WAL</th><td>{html.escape(env.get('work_dir_filesystem', ''))}; host disks: {html.escape(host.get('disks', '').replace(chr(10), '; '))}</td></tr>
-<tr><th>Power plan</th><td>{html.escape(host.get('power_scheme', env.get('power_scheme', '')))}</td></tr>
-<tr><th>Commit</th><td><code>{html.escape(env.get('git_commit', ''))}</code></td></tr>
+<tr><th>Power plan</th><td>{html.escape(power_plan(host.get('power_scheme', env.get('power_scheme', ''))))}</td></tr>
+<tr><th>Commit</th><td><code>{html.escape(' + '.join(h.get('commits', [])))}</code> (engine, C++ harness and CMake files are identical in both; the second only adds three prefetch run pairs and a second concurrency sweep to run_all.py, plus docs and chart scripts)</td></tr>
 <tr><th>Datasets</th><td>SIFT-10K and SIFT1M (INRIA Texmex, L2), GloVe-100 angular (ann-benchmarks); SHA-256 of every file in the JSON</td></tr>
 </tbody></table>
 <p>Protocol: every query is timed individually with a monotonic clock; QPS = 1 / mean latency on one thread. Recall@10 is computed against the published ground truth. Graph indexes were built at least 5 times (SIFT-10K) and 3 times (SIFT1M); medians are shown with min/max where builds vary. Engine comparisons are best-vs-best: both engines get the same (M, efConstruction) grid, and for each recall target the fastest measured point at or above the target is reported, with no interpolation. Instrumented builds (distance counters, prefetch off, fsync off) are separate binaries; the default engine is unmodified. Full decisions log: <code>docs/DECISIONS.md</code>; reproduce: <code>benchmarks/README.md</code>.</p>
@@ -450,30 +497,70 @@ def build_html(m: bd.Machine, h: dict) -> str:
 </main></body></html>"""
 
 
-def limitations(h: dict) -> list[str]:
-    L = []
+def losses(h: dict) -> list[tuple[str, str, float, float, float]]:
+    """Every recall target where hnswlib's best measured point beat Nexus's: (dataset, target, hnswlib, nexus, x)."""
+    out = []
     for ds, name in (("sift", "SIFT1M"), ("glove100", "GloVe-100")):
         for t in bd.RECALL_TARGETS:
             d = h.get(f"{ds}_r{int(t * 100)}", {})
-            if d.get("ratio") and d["ratio"] < 1 / 1.05:
-                L.append(f"hnswlib is faster than Nexus on {name} at recall >= {t:.2f}: {d['hnswlib_qps']:,.0f} vs "
-                         f"{d['nexus_qps']:,.0f} QPS ({1 / d['ratio']:.2f}x). A likely reason (not separately measured): "
-                         f"hnswlib stores each vector next to its layer-0 links in one memory block, while Nexus keeps "
-                         f"vectors and links in separate arrays, so each graph hop touches more cache lines.")
-                break
+            if d.get("ratio") and d["ratio"] < 1:
+                out.append((name, f"{t:.2f}", d["hnswlib_qps"], d["nexus_qps"], 1 / d["ratio"]))
+    return out
+
+
+def clean_text(t: str) -> str:
+    """Drop characters mangled by a console code page (Windows tools under a non-English locale)."""
+    return "".join(c for c in t if c.isascii() and (c.isprintable() or c == " ")).strip(" ?")
+
+
+# Windows' built-in power scheme GUIDs (identical on every Windows install)
+POWER_SCHEMES = {"8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c": "High performance",
+                 "381b4222-f694-41f0-9685-ff5bb260df2e": "Balanced",
+                 "a1841308-3541-4fab-bc81-f71556f20b4a": "Power saver",
+                 "e9a42b02-d5df-448d-aa00-03f14749eb61": "Ultimate Performance"}
+
+
+def power_plan(t: str) -> str:
+    for guid, name in POWER_SCHEMES.items():
+        if guid in t:
+            return f"{name} ({guid})"
+    return clean_text(t)
+
+
+def limitations(h: dict, short: bool = False) -> list[str]:
+    L = []
+    ls = losses(h)
+    if ls:
+        cases = "; ".join((f"{n} >= {t}: {r:.2f}x" if short else f"{n} at recall >= {t}: {hq:,.0f} vs {nq:,.0f} QPS ({r:.2f}x)")
+                          for n, t, hq, nq, r in ls)
+        L.append(f"hnswlib is faster in {len(ls)} of 6 (dataset, recall-target) comparisons: {cases}."
+                 + ("" if short else " A likely reason (not separately measured): hnswlib stores each vector next to "
+                    "its layer-0 links in one memory block, while Nexus keeps vectors and links in separate arrays, so "
+                    "each graph hop touches more cache lines."))
     for ds, name in (("sift", "SIFT1M"), ("glove100", "GloVe-100")):
         b = h.get(f"{ds}_build")
-        if b and b["ratio"] > 1.05:
-            L.append(f"Graph construction on {name} is {b['ratio']:.1f}x slower than hnswlib's, single-threaded "
+        if b and b["ratio"] > 1:
+            L.append(f"Graph construction on {name} is {b['ratio']:.2f}x slower than hnswlib's, single-threaded "
                      f"({b['nexus_s']:.0f} s vs {b['hnswlib_s']:.0f} s); Nexus has no parallel build.")
     mem = h.get("sift_memory", {})
     if "sq8" in mem and "hnsw" in mem and mem["sq8"]["bytes_per_vector"] > mem["hnsw"]["bytes_per_vector"]:
-        L.append("HNSWIndexSQ8 uses more memory than FP32 HNSW, because it keeps FP32 copies for re-ranking; on these "
-                 "datasets it is also slower at equal recall.")
+        sq = h.get("sift_sq8_r95")
+        speed = (f" It is faster at equal recall ({sq['sq8_qps']:,.0f} vs {sq['hnsw_qps']:,.0f} QPS at recall >= 0.95 "
+                 f"on SIFT1M), so it trades memory for speed, not the other way round." if sq else "")
+        L.append(f"HNSWIndexSQ8 uses more memory than FP32 HNSW ({mem['sq8']['bytes_per_vector']:.0f} vs "
+                 f"{mem['hnsw']['bytes_per_vector']:.0f} bytes/vector), because it keeps FP32 copies for re-ranking."
+                 + ("" if short else speed))
     w = h.get("write_path", {})
     if "default_hnsw" in w:
         L.append(f"Durable writes are bounded by one fsync per insert ({w['default_hnsw']['engine']:,.0f} inserts/s here); "
                  f"there is no group commit.")
+    sc = h.get("scaling", {})
+    if sc.get("q16") and sc["q16"] < sc["best_qps"] * 0.9 and not short:
+        L.append(f"Read throughput drops from {sc['best_qps']:,.0f} QPS at {sc['best_threads']} threads to "
+                 f"{sc['q16']:,.0f} QPS at 16 threads (all logical CPUs, both sweeps).")
+    if short:
+        L.append("One machine (Intel i5-13400F) under WSL2; absolute numbers will differ elsewhere.")
+        return L
     L += ["One machine (Intel i5-13400F) under WSL2. Absolute numbers will differ elsewhere; ratios and distance counts "
           "should carry over better, but that is not shown until another machine is measured.",
           "WSL2 hides the hybrid P/E core layout; single-thread runs were pinned to a virtual CPU, which Windows schedules "
@@ -517,13 +604,18 @@ def build_carousel(m: bd.Machine, h: dict, out: Path, theme: str = "dark") -> No
             fig.text(0.075, y, ln, color=T["ink"], fontsize=60, fontweight="bold", va="top")
             y -= 0.058
         y -= 0.03
+        # shrink the body until it fits above the link line (keeps every item; never truncates)
+        for fs_, width, lh in ((32, 46, 0.032), (28, 53, 0.028), (25, 60, 0.025), (22, 68, 0.022)):
+            need = sum(len(textwrap.wrap(it, width)) * lh + 0.02 for it in lines)
+            if y - need > 0.13:
+                break
         for item in lines:
-            wrapped = textwrap.wrap(item, 46)
-            fig.text(0.075, y, "•", color=T["nexus"], fontsize=32, va="top")
+            wrapped = textwrap.wrap(item, width)
+            fig.text(0.075, y, "•", color=T["nexus"], fontsize=fs_, va="top")
             for ln in wrapped:
-                fig.text(0.11, y, ln, color=T["ink2"], fontsize=32, va="top")
-                y -= 0.032
-            y -= 0.022
+                fig.text(0.11, y, ln, color=T["ink2"], fontsize=fs_, va="top")
+                y -= lh
+            y -= 0.02
         if link:
             fig.text(0.075, 0.06, link, color=T["ink"], fontsize=26, va="bottom")
         fig.text(0.955, 0.012, f"{n}/7", ha="right", va="bottom", color=T["muted"], fontsize=20)
@@ -537,7 +629,7 @@ def build_carousel(m: bd.Machine, h: dict, out: Path, theme: str = "dark") -> No
         page_from_png(pdf, "distances_sift", 4)
         page_from_png(pdf, "fix_before_after", 5)
         page_from_png(pdf, "crash_recovery", 6)
-        text_page(pdf, 7, "HONEST LIMITS", "What it does not do (yet)", limitations(h)[:5],
+        text_page(pdf, 7, "HONEST LIMITS", "What it does not do (yet)", limitations(h, short=True),
                   link=f"Code, raw data and how to reproduce:\n{REPO_URL.replace('https://', '')}")
         d = pdf.infodict()
         d["Title"] = "Nexus vector engine: measured"

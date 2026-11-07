@@ -46,8 +46,24 @@ class Machine:
         return h.get("cpu_model") or self.env.get("cpu", {}).get("model", "?")
 
     @property
+    def commits(self) -> list[str]:
+        """Every commit that produced a published result file (a run can span a resumed pass)."""
+        seen: dict[str, str] = {}
+        for p in self.root.glob("*/*.json"):
+            if p.parent.name.startswith("superseded"):
+                continue
+            try:
+                d = json.loads(p.read_text())
+            except (OSError, ValueError):
+                continue
+            c = ((d.get("env") or {}).get("git_commit") or "")[:7]
+            if c:
+                seen.setdefault(c, d.get("timestamp_utc", ""))
+        return sorted(seen, key=lambda c: seen[c]) or [(self.env.get("git_commit") or "?")[:7]]
+
+    @property
     def commit(self) -> str:
-        return (self.env.get("git_commit") or "?")[:7]
+        return " + ".join(self.commits)
 
     @property
     def runtime(self) -> str:

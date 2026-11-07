@@ -246,8 +246,8 @@ def pareto_chart(dataset):
             flat = bd.ann_points(m.result("recall_qps", f"{dataset}_flat"))
             if flat and mi == 0:
                 ax.axhline(flat[0].qps, color=T["exact"], lw=2, ls=(0, (2, 3)), zorder=2,
-                           label="exact scan (FlatIndex), recall 1.0")
-                ax.text(0.99, flat[0].qps, f"exact scan: {flat[0].qps:,.0f} QPS at recall 1.0",
+                           label=f"exact scan (FlatIndex), recall {flat[0].recall:.3f}")
+                ax.text(0.99, flat[0].qps, f"exact scan: {flat[0].qps:,.0f} QPS at recall {flat[0].recall:.3f}",
                         transform=ax.get_yaxis_transform(), ha="right", va="bottom", color=T["ink2"],
                         fontsize=12 if layout == "tall" else 10.5)
         lo = min(p.recall for _, _, pts in series for p in pts)
@@ -265,7 +265,15 @@ def pareto_chart(dataset):
         if a and b:
             fx = ax.transAxes.inverted().transform(ax.transData.transform((a.recall, a.qps)))[0]
             dx = 150 if fx < 0.55 else -170
-            up, dn = ((dx, 70), (dx, -130)) if a.qps >= b.qps else ((dx, -130), (dx, 70))
+            # keep the lower callout inside the axes: never push it below ~25% of the axes height
+            fy = min(ax.transAxes.inverted().transform(ax.transData.transform((p.recall, p.qps)))[1] for p in (a, b))
+            down = -min(130, max(40, (fy - 0.25) * ax.bbox.height * 72 / C.fig.dpi))
+            ddx = dx
+            if C.layout == "tall":
+                # curves fall to the right, so below-left of the lower point is empty space
+                w_pt = ax.bbox.width * 72 / C.fig.dpi
+                ddx = -max(0.0, min(150.0, fx * w_pt - 125))
+            up, dn = ((dx, 70), (ddx, down)) if a.qps >= b.qps else ((ddx, down), (dx, 70))
             note(ax, C, a.recall, a.qps,
                  f"Nexus {a.qps:,.0f} QPS\n(recall {a.recall:.3f}, {a.label.replace('_', ' ')}, ef {a.ef})", up, ha="center")
             note(ax, C, b.recall, b.qps,
@@ -299,7 +307,12 @@ def distance_chart(dataset):
         ax = C.axes(C.rect(pad_r=1.5 if layout == "wide" else 1.3),
                     "Distance computations per query (log scale)", "Recall@10")
         ax.set_xscale("log")
-        series = [("Nexus HNSW (FP32)", "nexus", nx, "o"), ("hnswlib", "hnswlib", hl, "s")]
+        hl_label = "hnswlib"
+        both = {p.ef: p for p in nx if p.dist}
+        rel = [abs(q.dist - both[q.ef].dist) / both[q.ef].dist for q in hl if q.dist and q.ef in both]
+        if rel and max(rel) < 0.10:  # say so when the measured curves sit on top of each other
+            hl_label = f"hnswlib (under Nexus; within {max(rel) * 100:.0f}% at every ef)"
+        series = [("Nexus HNSW (FP32)", "nexus", nx, "o"), (hl_label, "hnswlib", hl, "s")]
         sq = bd.ann_points(m0.result("distance_computations", f"{dataset}_nexus_sq8"))
         if sq:
             series.append(("Nexus HNSW-SQ8 (codes + FP32 re-rank)", "sq8", sq, "D"))
@@ -311,7 +324,8 @@ def distance_chart(dataset):
                 if not pts:
                     continue
                 ax.plot([p.dist for p in pts], [p.recall for p in pts], ls, color=T[key], lw=2.2, marker=mk, ms=6.5,
-                        mec=T["ring"], mew=1.5, label=label if len(ms) == 1 else f"{label} - {m.machine_id}", zorder=4)
+                        mec=T["ring"], mew=1.5, label=label if len(ms) == 1 else f"{label} - {m.machine_id}",
+                        zorder=6 if key == "nexus" else 4)  # Nexus on top: the curves can coincide
         ax.axvline(n_base, color=T["exact"], lw=2, ls=(0, (2, 3)))
         ax.text(n_base, 0.40, f"exact scan  \n{n_base:,} per query  ", transform=ax.get_xaxis_transform(),
                 color=T["ink2"], fontsize=11 if layout == "wide" else 12.5, ha="right", va="bottom")
@@ -327,7 +341,7 @@ def distance_chart(dataset):
                 txt += f"\nhnswlib: {b.dist:,.0f} at {b.recall:.3f}"
             note(ax, C, a.dist, a.recall, txt, (60, -70))
         better_arrow(ax, C, "up-left", where=(0.72, 0.62))
-        C.legend(ax, loc="lower left", bbox_to_anchor=(0.36, 0.02))
+        C.legend(ax, loc="lower left", bbox_to_anchor=(0.36 if layout == "wide" else 0.2, 0.02))
         return C
     return make
 
@@ -409,9 +423,9 @@ def crash_chart(ms, theme, layout):
     s = kc["summary"]
     title = (f"{s['passed']} of {s['cycles']} SIGKILL crashes recovered every acknowledged insert "
              f"({s['lost_acked_total']} lost, {s['torn_tails_truncated']} torn tails truncated)")
-    sub = (f"Writer inserts 128-d vectors through VectorEngine (WAL append + CRC32-C + fsync per insert) and is killed at a random "
-           f"moment; on restart the WAL is replayed and checked: no acknowledged insert missing, every vector bit-exact, "
-           f"torn tail truncated | every 4th cycle injects a partial record | WAL on {m0.env.get('work_dir_filesystem', '?').split(' on ')[0]}")
+    sub = (f"A writer inserts 128-d vectors (WAL append + CRC32-C + fsync per insert) and is killed at a random moment; "
+           f"after restart: no acknowledged insert missing, every vector bit-exact, torn tail truncated | "
+           f"every 4th cycle injects a partial record | WAL on {m0.env.get('work_dir_filesystem', '?').split(' on ')[0]}")
     C = Canvas(theme, layout, title, sub, footer(ms))
     T = C.T
     if layout == "wide":
@@ -491,7 +505,7 @@ def scaling_chart(ms, theme, layout):
              f"({100 * ref['read_qps'] / (q1 * ref['threads']):.0f}% of linear); peak {best['read_qps']:,.0f} QPS at {best['threads']} threads")
     sub = (f"SIFT1M | Nexus HNSWIndex through VectorEngine (shared lock per search) | efSearch {ro['ef']} | k = 10 | "
            f"{len(runs)} sweep(s) ({', '.join(f'{r['seconds_per_point']:.0f} s' for r in runs)} per point), title uses their mean | "
-           f"threads not pinned | dashed: 90/10 read/write mix, every write fsyncs")
+           f"threads not pinned | squares: 90/10 read/write mix, every write fsyncs")
     C = Canvas(theme, layout, title, sub, footer(ms))
     T = C.T
     ax = C.axes(C.rect(pad_r=1.8 if layout == "wide" else 1.2), "Threads", "Search queries per second")
@@ -524,7 +538,8 @@ def scaling_chart(ms, theme, layout):
     for v, lab in ((phys, f"{phys} physical cores"), (m0.logical_cpus, f"{m0.logical_cpus} logical CPUs")):
         if v:
             ax.axvline(v, color=T["axis"], lw=1.5)
-            ax.text(v, 0.98, lab + " ", transform=ax.get_xaxis_transform(), rotation=90, ha="left" if v == phys else "right", va="top",
+            # labels sit low, between the mix line and the read-only curves, so they cross no data
+            ax.text(v, 0.08, " " + lab, transform=ax.get_xaxis_transform(), rotation=90, ha="right", va="bottom",
                     color=T["ink2"], fontsize=fs)
     last = pts[-1]
     end_label(ax, C, last["threads"], last["read_qps"], f"{last['read_qps']:,.0f}", T["nexus"])
@@ -604,7 +619,8 @@ def memory_chart(ms, theme, layout):
     ax.grid(axis="y", visible=False)
     ax.set_xlim(0, max(d[2]["bytes_per_vector"] for d in data) * 1.3)
     ax.axvline(512, color=T["muted"], lw=1, ls=(0, (3, 3)))
-    ax.text(512, -0.75, " raw FP32 vector = 512 B", color=T["ink2"], fontsize=fs - 1, va="center")
+    ax.text(512, 1.01, "raw FP32 vector = 512 B", color=T["ink2"], fontsize=fs - 1, va="bottom", ha="center",
+            transform=ax.get_xaxis_transform())
     ax2 = C.axes(r2, "Build time, seconds (single thread)", "")
     for y, (lab, key, st) in zip(ys, data):
         ax2.barh(y, st["build_seconds"], height=0.6, color=T[key], zorder=3)
@@ -676,10 +692,11 @@ def prefetch_chart(ms, theme, layout):
         ratio.append((ef, q_on / q_off, q_on, q_off, [r[i].qps for r in on], [r[i].qps for r in off]))
     lo, hi = min(r[1] for r in ratio), max(r[1] for r in ratio)
     med = sorted(r[1] for r in ratio)[len(ratio) // 2]
-    helped = [r[0] for r in ratio if r[1] > 1.02]
+    per_pair = [a / b for r in ratio for a, b in zip(r[4], r[5])]
+    wins = sum(1 for v in per_pair if v > 1)
     if med > 1.02:
-        title = (f"Software prefetch speeds up search by up to {(hi - 1) * 100:.0f}% (median {(med - 1) * 100:+.0f}%); "
-                 f"it helps at efSearch {', '.join(map(str, helped))}")
+        title = (f"Software prefetch: median {(med - 1) * 100:+.0f}% search QPS (range {(lo - 1) * 100:+.0f}% to "
+                 f"{(hi - 1) * 100:+.0f}% by efSearch); faster in {wins} of {len(per_pair)} run pairs")
     elif med < 0.98:
         title = f"Software prefetch slows search down: {(lo - 1) * 100:+.0f}% to {(hi - 1) * 100:+.0f}% QPS"
     else:
@@ -695,13 +712,15 @@ def prefetch_chart(ms, theme, layout):
         runs = [a / b for a, b in zip(r[4], r[5])]
         ax.scatter([x] * len(runs), runs, s=36, color=T["ink2"], edgecolor=T["ring"], lw=1, zorder=5)
     fs = 12 if layout == "tall" else 11
+    top = max(max(per_pair), hi)
+    span = max(abs(min(per_pair) - 1), abs(top - 1), 0.02)
     for x, r in zip(xs, ratio):
-        ax.text(x, max(r[1], 1), f"{(r[1] - 1) * 100:+.1f}%\n{r[2]:,.0f} vs {r[3]:,.0f}", ha="center", va="bottom",
-                color=T["ink"], fontsize=fs - 0.5)
+        # one row of value labels above every bar and dot, so labels never collide with data
+        ax.text(x, top + span * 0.12, f"{(r[1] - 1) * 100:+.1f}%\n{r[2]:,.0f} vs\n{r[3]:,.0f} QPS", ha="center",
+                va="bottom", color=T["ink"], fontsize=fs - 0.5)
     ax.axhline(1, color=T["axis"], lw=1.4)
     ax.set_xticks(xs, [str(r[0]) for r in ratio])
-    span = max(abs(lo - 1), abs(hi - 1), 0.02)
-    ax.set_ylim(1 - span * 2.2, 1 + span * 2.6)
+    ax.set_ylim(1 - span * 1.25, top + span * 0.95)
     return C
 
 
