@@ -616,9 +616,10 @@ def suite_concurrency(r: Runner, cfg: dict) -> None:
         return
     threads = [1, 2, 4, 6, 8, 10, 12, 16]
     exe = bin_path(r.build_root, "default", "nexus_bench")
-    for task, frac in (("read_only", 0.0), ("mix_90_10", 0.1)):
+    # read_only_repeat: a second, longer sample of the same sweep to show run-to-run variation
+    for task, frac, secs in (("read_only", 0.0, 5), ("mix_90_10", 0.1, 5), ("read_only_repeat", 0.0, 10)):
         cmd = [exe, "concurrency", "--snapshot", str(snap), "--query", d["query"], "--threads",
-               ",".join(map(str, threads)), "--seconds", "5", "--ef", str(cfg["concurrency_ef"]),
+               ",".join(map(str, threads)), "--seconds", str(secs), "--ef", str(cfg["concurrency_ef"]),
                "--wal", str(r.work / "concurrency.wal"), "--write-frac", str(frac)]
         if frac > 0:
             cmd += ["--insert-base", d["learn"]]
@@ -632,7 +633,7 @@ def suite_ablation(r: Runner, cfg: dict) -> None:
     if snap.exists():
         efs = [16, 32, 64, 128, 256]
         # interleave A/B runs to spread any thermal or background drift over both variants
-        for i in range(2):
+        for i in range(5):
             for variant in ("default", "noprefetch"):
                 r.ann(s, f"prefetch_{variant}_{i}", "nexus", "sift", load=snap, efs=efs, repeats=2, variant=variant)
     else:
