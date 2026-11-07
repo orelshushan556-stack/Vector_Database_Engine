@@ -62,6 +62,49 @@ add_executable(bench_sift benchmarks/bench_sift.cpp)
 target_link_libraries(bench_sift PRIVATE engine_core)
 
 # ==============================================================================
+# Benchmark suite (benchmarks/README.md)
+# Instrumentation toggles are compile-time only and default OFF; with all of them OFF the
+# engine is compiled exactly as without them. Use a separate build directory per variant.
+# ==============================================================================
+option(NEXUS_COUNT_DISTANCES "Count HNSW distance evaluations (benchmark instrumentation)" OFF)
+option(NEXUS_DISABLE_PREFETCH "Disable software prefetch in HNSW search (ablation)" OFF)
+option(NEXUS_WAL_NO_FSYNC "Skip the per-record WAL fsync (write-path benchmark only, NOT durable)" OFF)
+option(NEXUS_BENCH_HNSWLIB "Fetch hnswlib and build the hnswlib comparison harness" OFF)
+option(NEXUS_BUILD_TESTS "Build the GoogleTest suite" ON)
+
+foreach(_toggle NEXUS_COUNT_DISTANCES NEXUS_DISABLE_PREFETCH NEXUS_WAL_NO_FSYNC)
+    if (${_toggle})
+        target_compile_definitions(engine_core PUBLIC ${_toggle})
+        message(STATUS "Benchmark toggle enabled: ${_toggle}")
+    endif()
+endforeach()
+
+add_executable(nexus_bench benchmarks/nexus_bench.cpp)
+target_link_libraries(nexus_bench PRIVATE engine_core)
+if (WIN32)
+    target_link_libraries(nexus_bench PRIVATE psapi)
+endif()
+
+if (NEXUS_BENCH_HNSWLIB)
+    include(FetchContent)
+    FetchContent_Declare(
+            hnswlib
+            URL https://github.com/nmslib/hnswlib/archive/refs/tags/v0.8.0.tar.gz
+            # Header-only: download only, do not add hnswlib's own CMake project.
+            SOURCE_SUBDIR do-not-add-subdirectory
+    )
+    FetchContent_MakeAvailable(hnswlib)
+    add_executable(hnswlib_bench benchmarks/hnswlib_bench.cpp)
+    target_include_directories(hnswlib_bench SYSTEM PRIVATE ${hnswlib_SOURCE_DIR})
+    if (NEXUS_COUNT_DISTANCES)
+        target_compile_definitions(hnswlib_bench PRIVATE NEXUS_COUNT_DISTANCES)
+    endif()
+    if (WIN32)
+        target_link_libraries(hnswlib_bench PRIVATE psapi)
+    endif()
+endif()
+
+# ==============================================================================
 # Standalone Vector Database Network Service (nexus_server)
 # ==============================================================================
 set(SERVER_SOURCES
@@ -88,5 +131,7 @@ if (WIN32)
     target_link_libraries(nexus_server PRIVATE ws2_32)
 endif()
 
-enable_testing()
-add_subdirectory(tests)
+if (NEXUS_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

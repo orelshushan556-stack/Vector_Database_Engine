@@ -3,6 +3,8 @@
 // Graph traversal and maintenance primitives shared by HNSWIndex and HNSWIndexSQ8.
 // The index classes supply distance, link-access and prefetch policies as callables.
 
+#include "engine/diagnostics.hpp"
+
 #include <immintrin.h>
 
 #include <algorithm>
@@ -55,7 +57,10 @@ inline VisitedList& thread_visited() {
 }
 
 // Prefetch up to four cache lines starting at p.
-inline void prefetch_bytes(const void* p, std::size_t bytes) {
+inline void prefetch_bytes([[maybe_unused]] const void* p, [[maybe_unused]] std::size_t bytes) {
+#if defined(NEXUS_DISABLE_PREFETCH)
+    return;
+#else
     constexpr std::size_t line = 64;
     constexpr std::size_t max_lines = 4;
     const char* c = static_cast<const char*>(p);
@@ -63,6 +68,7 @@ inline void prefetch_bytes(const void* p, std::size_t bytes) {
     for (std::size_t i = 0; i < lines; ++i) {
         _mm_prefetch(c + i * line, _MM_HINT_T0);
     }
+#endif
 }
 
 // Best-first search on a single layer.
