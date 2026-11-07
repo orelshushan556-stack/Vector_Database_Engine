@@ -1,0 +1,11 @@
+{
+  "_comment": "Parameters for scripts/run_all.py. M/efc: the main configuration used by recall_qps, distance_computations, concurrency and ablation. grid_*: extra (M, efConstruction) pairs built for BOTH engines in vs_hnswlib; the main configuration's recall_qps builds are reused as one more grid point.",
+  "M": 16,
+  "efc": 200,
+  "glove_M": 16,
+  "glove_efc": 200,
+  "grid_sift": [[8, 100], [8, 300], [16, 100], [32, 100], [32, 300]],
+  "grid_glove": [[32, 200], [32, 500], [48, 500]],
+  "ef_glove_extra": [1024, 1536],
+  "concurrency_ef": 64
+}
