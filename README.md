@@ -4,6 +4,55 @@ Nexus is an embedded C++20 vector search engine. It provides approximate nearest
 
 Author: orel shushan
 
+## Benchmarks
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/figures/hero_dark.png">
+  <img alt="Nexus measured: 902x fewer distance computations than a full scan at 95% recall on SIFT1M, worst-build recall 0.998 after the graph fix, 500 of 500 crash recoveries verified" src="docs/figures/hero_light.png">
+</picture>
+
+Measured on one machine (Intel Core i5-13400F, WSL2 Ubuntu 26.04, GCC 15.2, `-O3 -mavx2 -mfma`), single thread unless
+noted, k = 10. Every number below comes from a run whose raw JSON is in
+[`results/intel-i5-13400f/2026-11-07/`](results/intel-i5-13400f/2026-11-07/). hnswlib v0.8.0 was built with the same
+compiler and flags, ran on the same pinned vCPU, and was tuned on the same (M, efConstruction) grid. Each cell is the
+fastest measured point at or above the recall target, with no interpolation.
+
+| SIFT1M (1M x 128, L2)            | Nexus HNSW       | hnswlib          | Nexus / hnswlib |
+|----------------------------------|------------------|------------------|-----------------|
+| QPS at recall >= 0.90            | 16,032           | 17,253           | 0.93x (loss)    |
+| QPS at recall >= 0.95            | 11,337           | 10,619           | 1.07x           |
+| QPS at recall >= 0.99            | 5,607            | 4,916            | 1.14x           |
+| Distance computations per query at recall >= 0.95 | 1,109 (902x fewer than a full scan) | 1,250 | 0.89x |
+| Build time, M=16 efC=200 (median of 3) | 297 s      | 269 s            | 1.10x slower    |
+| Memory, bytes per vector         | 680              | 718              | 0.95x           |
+
+| GloVe-100 (1.18M x 100, angular) | Nexus HNSW | hnswlib | Nexus / hnswlib |
+|----------------------------------|------------|---------|-----------------|
+| QPS at recall >= 0.90            | 2,984      | 3,134   | 0.95x (loss)    |
+| QPS at recall >= 0.95            | 1,356      | 1,271   | 1.07x           |
+| QPS at recall >= 0.99            | 438        | 461     | 0.95x (loss)    |
+
+| Engine property | Measured |
+|-----------------|----------|
+| Crash recovery (SIGKILL at random moments) | 500 of 500 cycles verified, 0 acknowledged inserts lost, 125 of 125 injected torn tails truncated |
+| WAL replay | 1,000,000 records (505 MiB) read and CRC-checked in 0.12 s |
+| Durable insert rate (fsync per insert) | 212 inserts/s into HNSW (P50 4.5 ms); 11,567/s without fsync |
+| Neighbor-selection fix, SIFT-10K, efSearch 64, 10 builds each | worst-build recall 0.641 before, 0.998 after |
+| HNSW-SQ8 at recall >= 0.95 (SIFT1M) | 14,571 QPS (vs 11,337 FP32), at 808 vs 680 bytes per vector |
+| Multi-thread search (SIFT1M, ef 64) | 8,521 QPS on 1 thread, peak 49,737 QPS at 12 threads |
+| AVX2 vs scalar L2 kernel | 2.8x to 11.8x faster (d = 32 to 1024) |
+
+Losses are listed, not hidden. hnswlib is faster in 3 of the 6 recall comparisons and builds 1.10x faster on SIFT1M.
+Durable writes are bounded by one fsync per insert, with no group commit. Read throughput drops at 16 threads. Absolute
+numbers belong to this machine and to WSL2.
+
+- Visual report with methodology and caveats for every chart: [`docs/report.html`](docs/report.html) (download it and
+  open it in a browser).
+- Summary, losses and how to run the suite on another machine:
+  [`results/intel-i5-13400f/SUMMARY.md`](results/intel-i5-13400f/SUMMARY.md)
+- Benchmark methodology and reproduction: [`benchmarks/README.md`](benchmarks/README.md); decisions log:
+  [`docs/DECISIONS.md`](docs/DECISIONS.md)
+
 ## Contents
 
 1. System overview
@@ -90,7 +139,7 @@ Shared graph core: `src/index/hnsw_common.hpp` holds the traversal and maintenan
 
 Each index supplies only its storage layout and metric dispatch: `HNSWIndex::distance_to` over FP32 vectors, and `HNSWIndexSQ8::compute_quantized_distance` over SQ8 codes (L2) or raw FP32 (cosine, dot product).
 
-Cache prefetching: inside `search_layer_impl`, before distances are evaluated for the neighbors of an expanded node, a first pass issues `_mm_prefetch(..., _MM_HINT_T0)` for each unvisited neighbor's vector data (up to four 64-byte cache lines per vector; the SQ8 index prefetches the 8-bit codes for L2 and the raw floats for the other metrics). This overlaps the dependent cache misses of the pointer-chasing traversal. The effect has not been benchmarked with this repository's harness; its benefit is workload and hardware dependent.
+Cache prefetching: inside `search_layer_impl`, before distances are evaluated for the neighbors of an expanded node, a first pass issues `_mm_prefetch(..., _MM_HINT_T0)` for each unvisited neighbor's vector data (up to four 64-byte cache lines per vector; the SQ8 index prefetches the 8-bit codes for L2 and the raw floats for the other metrics). This overlaps the dependent cache misses of the pointer-chasing traversal. Measured on SIFT1M (one saved graph, a build with and a build without prefetching via the compile-time toggle `NEXUS_DISABLE_PREFETCH`, 5 alternating run pairs, Intel i5-13400F under WSL2): +2.3% to +10.0% QPS depending on efSearch, faster in 24 of 25 run pairs (`results/intel-i5-13400f/2026-11-07/ablation/`). The benefit depends on the memory system and may differ on other CPUs.
 
 `HNSWIndex` is not internally synchronized; thread safety is provided by `VectorEngine` (section 2.5).
 
@@ -222,26 +271,30 @@ Source: `src/server/WorkerThreadPool.*`, `src/server/HttpServer.cpp`, `src/core/
 
 `benchmarks/bench_sift.cpp` (target `bench_sift`) evaluates the SIFT-small dataset (10,000 base vectors, 128 dimensions, 100 queries, k = 10) against the provided ground truth. For each configuration it runs one scoring pass for recall and then 20 timed passes over all queries, timing every query individually, and reports Recall@10, P50, P99, mean latency, and single-thread QPS (1 / mean latency). It reads `data/siftsmall/siftsmall_base.fvecs`, `siftsmall_query.fvecs` and the ground-truth ivecs file relative to the working directory; `data/` is git-ignored.
 
-Measured results (AMD Ryzen AI 7 350, Windows 11, MinGW GCC 15.2 with `-O3 -mavx2 -mfma`, single thread, HNSW M = 16, efConstruction = 200, SQ8 re-rank factor 5.0). Each row is the median over 10 independent runs of the harness; every run builds a new graph from a fresh random seed. Recall is shown with its minimum and maximum over the 10 runs.
+Measured results below come from the benchmark suite (`benchmarks/nexus_bench.cpp` and `scripts/run_all.py`, which use the same protocol: one recall pass, then 20 timed passes over the 100 queries, each query timed individually). Machine: Intel Core i5-13400F, WSL2 Ubuntu 26.04, GCC 15.2 with `-O3 -mavx2 -mfma`, single thread pinned to one vCPU, HNSW M = 16, efConstruction = 200. HNSW rows are the median over 5 independent builds, with recall min - max across them. Raw data: `results/intel-i5-13400f/2026-11-07/recall_qps/siftsmall_*.json`. An earlier version of this table came from a different machine (AMD Ryzen AI 7 350, native Windows) and is superseded.
 
-| Configuration           | Recall@10 median (min - max) | P50 (us) | P99 (us) | QPS (1 thread) |
-|-------------------------|------------------------------|----------|----------|----------------|
-| `FlatIndex` (exact)     | 1.000 (1.000 - 1.000)        | 86.5     | 235.4    | 10,016         |
-| `QuantizedFlatIndex`    | 0.990 (0.990 - 0.990)        | 125.0    | 344.0    | 7,009          |
-| `HNSWIndex` ef = 32     | 0.997 (0.986 - 0.998)        | 21.4     | 65.4     | 43,522         |
-| `HNSWIndex` ef = 64     | 0.999 (0.989 - 1.000)        | 40.2     | 134.2    | 22,658         |
-| `HNSWIndex` ef = 100    | 1.000 (0.990 - 1.000)        | 61.0     | 184.8    | 14,724         |
-| `HNSWIndex` ef = 150    | 1.000 (0.990 - 1.000)        | 82.7     | 217.2    | 11,462         |
-| `HNSWIndexSQ8` ef = 32  | 1.000 (0.999 - 1.000)        | 95.8     | 276.3    | 9,657          |
-| `HNSWIndexSQ8` ef = 64  | 1.000 (0.999 - 1.000)        | 169.0    | 505.3    | 5,212          |
-| `HNSWIndexSQ8` ef = 100 | 1.000 (0.999 - 1.000)        | 240.4    | 656.6    | 3,694          |
-| `HNSWIndexSQ8` ef = 150 | 1.000 (0.999 - 1.000)        | 335.5    | 882.0    | 2,603          |
+| Configuration                        | Recall@10 median (min - max) | P50 (us) | P99 (us) | QPS (1 thread) |
+|--------------------------------------|------------------------------|----------|----------|----------------|
+| `FlatIndex` (exact)                  | 1.000                        | 87.3     | 177.5    | 10,959         |
+| `QuantizedFlatIndex`                 | 0.990                        | 106.6    | 170.4    | 9,139          |
+| `HNSWIndex` ef = 16                  | 0.973 (0.972 - 0.978)        | 8.8      | 16.5     | 110,522        |
+| `HNSWIndex` ef = 32                  | 0.997 (0.997 - 0.997)        | 16.2     | 26.8     | 62,214         |
+| `HNSWIndex` ef = 64                  | 0.999 (0.999 - 0.999)        | 29.8     | 44.3     | 34,751         |
+| `HNSWIndex` ef = 100                 | 1.000 (1.000 - 1.000)        | 43.6     | 64.8     | 23,482         |
+| `HNSWIndex` ef = 150                 | 1.000 (1.000 - 1.000)        | 61.4     | 89.3     | 16,824         |
+| `HNSWIndexSQ8` ef = 32, re-rank 1    | 0.997 (0.997 - 0.998)        | 19.1     | 30.4     | 52,147         |
+| `HNSWIndexSQ8` ef = 32, re-rank 2    | 0.999 (0.999 - 0.999)        | 35.5     | 54.8     | 28,931         |
+| `HNSWIndexSQ8` ef = 32, re-rank 5    | 1.000 (1.000 - 1.000)        | 77.0     | 111.2    | 13,398         |
+| `HNSWIndexSQ8` ef = 64, re-rank 5    | 1.000 (1.000 - 1.000)        | 133.8    | 196.1    | 7,627          |
+| `HNSWIndexSQ8` ef = 150, re-rank 5   | 1.000 (1.000 - 1.000)        | 262.3    | 347.9    | 3,824          |
+| hnswlib v0.8.0 ef = 32 (reference)   | 0.994 (0.993 - 0.996)        | 12.5     | 21.6     | 80,384         |
 
 Interpretation and limitations:
 
-- Recall is stable across builds: the worst run of any HNSW configuration reached 0.986 (`HNSWIndex`) and 0.999 (`HNSWIndexSQ8`). Before the neighbor-selection change (section 2.2) the same harness produced run-to-run minima of 0.40 and 0.62.
-- Graph traversal versus sequential scan: the base set is 10,000 x 128 x 4 B, about 5 MB, which fits in the last-level cache. An exact scan then streams contiguous memory that the hardware prefetcher handles well (86.5 us P50), while HNSW performs dependent, random-access hops, so its advantage here is about 4x (21.4 us at 0.997 recall) rather than the orders of magnitude seen on corpora far larger than the cache. Scan cost grows linearly with the corpus and graph search roughly logarithmically, so the gap widens with scale; this was not measured here. The explanation of the cache behavior is an interpretation of these numbers, not a separate measurement.
-- `HNSWIndexSQ8` re-ranks the entire candidate pool collected on layer 0 (`max(efSearch, k) * re_rank_factor` candidates, all rescored with exact FP32 distances) before truncating to `k`; it does not truncate to `k` first. With a factor of 5.0 it therefore performs `5 * max(efSearch, k)` exact distance computations per query, and on this dataset it is slower than brute-force `FlatIndex`. Its benefit is the 1-byte code scan during traversal, which matters for memory bandwidth at larger scales, not for a 10,000-vector corpus that fits in cache. A smaller re-rank factor lowers latency at some cost in recall.
+- Recall is stable across builds: over 5 builds the widest HNSW spread is 0.947 - 0.959 (ef = 10), and from ef = 24 up every build gives the same recall. With the commit before the neighbor-selection change (section 2.2), 10 builds at ef = 64 had a worst build of 0.641 in one pass and 0.394 in another; after it, 0.998 (`results/intel-i5-13400f/2026-11-07/before_after_fix/`).
+- Against hnswlib on this 10,000-vector set, with one configuration (M = 16, efConstruction = 200) for both: at recall >= 0.90 hnswlib is faster (200,251 vs 164,979 QPS), at >= 0.95 Nexus is faster (164,979 vs 143,745), and at >= 0.99 they are level (78,507 vs 80,384). On SIFT1M with a tuned grid, see the Benchmarks section at the top.
+- Graph traversal versus sequential scan: the base set is 10,000 x 128 x 4 B, about 5 MB, which fits in the last-level cache. An exact scan then streams contiguous memory that the hardware prefetcher handles well (87.3 us P50), while HNSW performs dependent, random-access hops, so its advantage here is about 5x (16.2 us at 0.997 recall). On SIFT1M (1M vectors) the measured gap at recall >= 0.95 is 11,337 vs 43 QPS. The explanation of the cache behavior is an interpretation of these numbers, not a separate measurement.
+- `HNSWIndexSQ8` re-ranks the entire candidate pool collected on layer 0 (`max(efSearch, k) * re_rank_factor` candidates, all rescored with exact FP32 distances) before truncating to `k`; it does not truncate to `k` first. With a factor of 5 on this cache-resident dataset it is slower than brute-force `FlatIndex` at large efSearch. With re-rank 1 it reaches 0.997 recall at 52,147 QPS, and on SIFT1M it is faster than FP32 HNSW at equal recall (14,571 vs 11,337 QPS at >= 0.95), at 808 vs 680 bytes per vector.
 - Scalar quantizer calibration was reviewed: `QuantizedFlatIndex` reaches 0.990 Recall@10 with plain per-dimension min/max bounds, so percentile clipping was not introduced.
 - The query set is 100 vectors, the figures are single-thread latency rather than server throughput, and they were produced on one machine; they are not comparable with figures from other hardware or datasets.
 
