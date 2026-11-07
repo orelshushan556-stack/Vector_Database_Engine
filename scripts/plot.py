@@ -6,7 +6,7 @@
 Each chart is exported for a light and a dark theme as:
   <name>_<theme>.png             2x resolution of the 1200x675 layout (2400x1350)
   <name>_<theme>.svg             vector, same layout
-  <name>_<theme>_1200x675.png    social card (LinkedIn / GitHub)
+  <name>_<theme>_1200x675.png    social card (GitHub)
   <name>_<theme>_1080x1350.png   portrait carousel slide (separate layout)
 
 Titles state the takeaway and are computed from the measured data; nothing is hard-coded.

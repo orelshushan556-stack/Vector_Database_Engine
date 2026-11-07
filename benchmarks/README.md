@@ -133,7 +133,7 @@ scripts/
   bench_faiss.py       optional FAISS IndexHNSWFlat reference run
   bench_data.py        loading + derived numbers shared by the chart/report scripts
   plot.py              charts (light/dark, 2x PNG, SVG, 1200x675, 1080x1350)
-  make_report.py       docs/report.html + docs/carousel.pdf + results/<id>/headlines.json
+  make_report.py       docs/report.html + results/<id>/headlines.json
 ```
 
 ## Limitations
