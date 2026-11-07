@@ -6,7 +6,7 @@
 #   toolchain     Compiler, CMake, Ninja and the sources
 #   engine-build  Release build of every target (library, server, tests, benchmark)
 #   test          Runs the full ctest suite; the image build fails if any test fails
-#   bench         SIFT benchmark harness (run with the dataset mounted, see below)
+#   bench         Benchmark suite: scripts/run_all.py (mount datasets + results, see Stage 5)
 #   asan / tsan   Sanitizer builds that run the full test suite (see Stage 6)
 #   runtime       Minimal image containing nexus_server and the dashboard (default)
 #
@@ -14,9 +14,9 @@
 #   docker build -t vector-engine:latest .
 # compiles, runs the complete test suite, and only then produces the runtime image.
 #
-# Benchmark (the SIFT-small files are not part of the build context):
+# Benchmark suite (datasets are not part of the build context; see Stage 5):
 #   docker build --target bench -t vector-engine:bench .
-#   docker run --rm -v "$(pwd)/data:/src/data:ro" vector-engine:bench
+#   docker run --rm -v "$(pwd)/data:/data" -v "$(pwd)/results:/src/results" vector-engine:bench --data-dir /data
 #
 # The engine requires an AVX2 and FMA capable CPU (compiled with -mavx2 -mfma).
 # ==============================================================================
@@ -69,13 +69,23 @@ RUN ctest --test-dir build --output-on-failure \
     && touch /tmp/tests-passed
 
 # ------------------------------------------------------------------------------
-# Stage 5: SIFT benchmark harness
-# Expects data/siftsmall/{siftsmall_base.fvecs, siftsmall_query.fvecs,
-# siftsmall_groundtruth.ivecs} under /src/data (mount it at run time).
+# Stage 5: benchmark suite (benchmarks/README.md)
+# Runs scripts/run_all.py, which builds the benchmark variants (incl. hnswlib) and writes raw
+# JSON to /src/results. Mount a dataset directory (scripts/download_data.py) and a results
+# directory; the work directory should be a container-local or bind-mounted local disk:
+#   docker build --target bench -t vector-engine:bench .
+#   docker run --rm -v "$(pwd)/data:/data" -v "$(pwd)/results:/src/results" #       vector-engine:bench --machine-id <cpu-slug> --data-dir /data
+# The legacy single-file SIFT-10K harness is still available:
+#   docker run --rm -v "$(pwd)/data:/src/data:ro" --entrypoint /src/build/bench_sift vector-engine:bench
+# Note: numbers measured in Docker Desktop run inside a VM; run_all.py records the runtime.
 # ------------------------------------------------------------------------------
 FROM engine-build AS bench
+RUN apt-get update     && apt-get install -y --no-install-recommends python3 python3-numpy python3-h5py     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-ENTRYPOINT ["/src/build/bench_sift"]
+COPY scripts/ scripts/
+# .git is excluded from the build context, so inside the image the git commit is not recorded
+# and before_after_fix (which needs git history) is reported as a gap; run it natively.
+ENTRYPOINT ["python3", "scripts/run_all.py", "--build-root", "/src/build-bench"]
 
 # ------------------------------------------------------------------------------
 # Stage 6: sanitizer builds (not part of the default chain)

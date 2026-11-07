@@ -1,0 +1,63 @@
+# Build + unit tests + a SIFT-10K recall smoke run.
+# Shared CI runners are too noisy for latency or throughput claims, so this job checks
+# correctness only: tests pass and HNSW recall on SIFT-10K stays above a floor.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends g++ cmake ninja-build
+
+      - name: Check CPU features (engine requires AVX2/FMA)
+        run: grep -o -w -E 'avx2|fma|sse4_2' /proc/cpuinfo | sort -u
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Build with instrumentation toggles (must compile and pass)
+        run: |
+          cmake -S . -B build-count -G Ninja -DCMAKE_BUILD_TYPE=Release -DNEXUS_COUNT_DISTANCES=ON -DNEXUS_DISABLE_PREFETCH=ON
+          cmake --build build-count --parallel
+          ctest --test-dir build-count --output-on-failure
+
+      - name: Cache SIFT-10K
+        uses: actions/cache@v4
+        with:
+          path: data/siftsmall
+          key: siftsmall-v1
+
+      - name: Download SIFT-10K
+        run: python3 scripts/download_data.py --data-dir data --datasets siftsmall
+
+      - name: SIFT-10K recall smoke run
+        run: |
+          python3 scripts/run_all.py --machine-id ci --data-dir data --build-root build-bench \
+            --suites recall_qps --quick --date ci
+          python3 - <<'PY'
+          import json, glob
+          f = glob.glob("results/ci/ci/recall_qps/siftsmall_hnsw.json")[0]
+          pts = json.load(open(f))["result"]["builds"][0]["points"]
+          best = max(p["recall"] for p in pts)
+          print("SIFT-10K HNSW points:", [(p["ef"], round(p["recall"], 3)) for p in pts])
+          assert best >= 0.95, f"recall regression: best Recall@10 {best:.3f} < 0.95"
+          PY
+
+      - name: Upload smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-smoke-results
+          path: results/ci/
